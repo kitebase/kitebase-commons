@@ -43,6 +43,20 @@ types:
     base: ShortStr
     index: True
 
+  # A key nobody types, kept as text in the canonical 36-character form. It is
+  # minted on insert by the server (`$uuid`) unless the client brings its own,
+  # as offline devices do. Not editable, because a key that changes is a
+  # different record. Not SQLAlchemy's `UUID`: that is the native type, which
+  # takes uuid.UUID objects only, so every JSON string would need converting.
+  # A column that only *cites* such a key is not one: it neither mints nor is
+  # unique, so it declares its own shape.
+  UuidStr:
+    base: String
+    length: 36
+    default: $uuid
+    editable: False
+    unique: True
+
   # For identifiers whose alphabet is upper case anyway — tax and VAT numbers,
   # ISO codes: the value is normalised on write, searches included, so the code
   # around them never has to convert.
