@@ -54,6 +54,7 @@ types:
     base: String
     length: 36
     default: $uuid
+    deferred: True      # minted at save: a form leaves it to the server
     editable: False
     unique: True
 
