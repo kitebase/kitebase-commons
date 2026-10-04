@@ -1,7 +1,7 @@
 """The password policy: what a new password must be, on every way in.
 
 Registered as `password_policy` and declared by the Password type, so it holds
-wherever a password is written through coframe - the user form of an
+wherever a password is written through kitebase - the user form of an
 administrator, and one's own change of password, which calls it too.
 
 The rules come from the application's config.yaml, and only the length is on
@@ -15,9 +15,9 @@ password strong, and mandatory symbols mostly produce `Password1!`.
 
 bcrypt's 72-byte ceiling is not a rule here: the hashing refuses it on its own.
 """
-import coframe.utils
-from coframe.i18n import _, _f
-from coframe.transforms import register_validator
+import kitebase.utils
+from kitebase.i18n import _, _f
+from kitebase.transforms import register_validator
 
 DEFAULTS = {'min_length': 8, 'require': [], 'not_like_username': False}
 
@@ -32,7 +32,7 @@ _CLASSES = {
 def policy() -> dict:
     """The rules in force: the defaults, with what config.yaml says on top."""
     try:
-        given = coframe.utils.get_app().pm.config.get('password_policy') or {}
+        given = kitebase.utils.get_app().pm.config.get('password_policy') or {}
     except Exception:
         given = {}
     return {**DEFAULTS, **given}

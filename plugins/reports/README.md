@@ -1,6 +1,6 @@
 # reports
 
-Printing for Coframe applications through [AndRep](https://github.com/claudiodriussi/andrep).
+Printing for Kitebase applications through [AndRep](https://github.com/claudiodriussi/andrep).
 
 **Under construction.** This directory holds the plan and the way to test it;
 the code comes when the plugin is implemented. No application should include it
@@ -9,12 +9,12 @@ yet.
 ## What it will be
 
 AndRep renders templates; the report *loop* — read the data, emit bands — is
-Python, and in Coframe it runs in the backend. Between the two sits a **context
+Python, and in Kitebase it runs in the backend. Between the two sits a **context
 adapter**, written once per platform: it is this plugin.
 
 | Piece | What it gives AndRep | Where it comes from |
 |---|---|---|
-| Record view | Coframe records passed to templates as they are, exposing only their declared fields | `SQLAlchemyView` of AndRep, derived here: virtual columns as `extra_fields`, and what a relation may reach |
+| Record view | Kitebase records passed to templates as they are, exposing only their declared fields | `SQLAlchemyView` of AndRep, derived here: virtual columns as `extra_fields`, and what a relation may reach |
 | Resolver | `root:path` references printed as images | the media roots of `config.yaml`, restricted to the references the loop emitted |
 | Loader | templates by qualified name, with their variants | the `andrep/` folder of each plugin, in dependency order, plus the installation layer on top |
 | Command | a `print` command in the Navigator, answering with a `choose` menu | endpoints under `reports.*` |
@@ -23,7 +23,7 @@ A plugin that ships reports declares `depends_on: [reports]`, registers its
 loops with `@report('domain.name')` and keeps its templates in
 `andrep/<report>/<variant>.json`.
 
-The design, point by point, is in the Coframe workspace documentation
+The design, point by point, is in the Kitebase workspace documentation
 (`docs/pending/reporting.md`, and `docs/pending/media.md` for files and
 resources).
 
@@ -31,7 +31,7 @@ resources).
 
 AndRep with the `sqlalchemy` extra, from PyPI or from a checkout
 (`uv pip install -e "/path/to/andrep/renderer[sqlalchemy]"`), plus its PDF
-backend. SQLAlchemy itself is already there through coframe.
+backend. SQLAlchemy itself is already there through kitebase.
 
 ## Status
 
@@ -45,7 +45,7 @@ backend. SQLAlchemy itself is already there through coframe.
   from andrep.adapters import register_view
   from andrep.adapters.sqlalchemy import SQLAlchemyView
 
-  register_view(Base, SQLAlchemyView)   # a Coframe subclass, when it has one
+  register_view(Base, SQLAlchemyView)   # a Kitebase subclass, when it has one
   ```
 
   AndRep stays anonymous: views for vertical platforms live in those
@@ -84,7 +84,7 @@ they are skipped, saying why.
 
 What must be covered next, beyond "a report prints":
 
-- the Coframe view: virtual columns readable; a relation does not reach rows the
+- the Kitebase view: virtual columns readable; a relation does not reach rows the
   user's query would not have returned;
 - the resolver: a reference the loop emitted is printed, a reference written by
   hand in the template is refused, a public root (plugin assets) is readable;

@@ -1,4 +1,4 @@
-from coframe.i18n import register_translations
+from kitebase.i18n import register_translations
 
 register_translations('it', {
     'Not logged in': 'Accesso non effettuato',

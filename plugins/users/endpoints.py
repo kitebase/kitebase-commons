@@ -10,12 +10,12 @@ stored form the column declares. The rules are the same as the user form's.
 Setting another user's password is not here: the user form does it, for who
 can edit users (pages.yaml).
 """
-import coframe.utils
-from coframe.db import BaseApp
-from coframe.endpoint_db import write_values
-from coframe.endpoints import endpoint
-from coframe.i18n import _
-from coframe.transforms import ValidationError, verify_password
+import kitebase.utils
+from kitebase.db import BaseApp
+from kitebase.endpoint_db import write_values
+from kitebase.endpoints import endpoint
+from kitebase.i18n import _
+from kitebase.transforms import ValidationError, verify_password
 
 # What the form shows, before and after: a password never stays on screen.
 EMPTY = {'current': '', 'new': '', 'confirm': ''}
@@ -38,7 +38,7 @@ def change_password(data):
     new = values.get('new') or ''
     confirm = values.get('confirm') or ''
 
-    app = coframe.utils.get_app()
+    app = kitebase.utils.get_app()
     auth = app.pm.config.get('authentication', {})
     table = auth.get('user_table', 'User')
     field = auth.get('password_field', 'password')

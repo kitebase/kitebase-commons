@@ -1,24 +1,24 @@
 """commons demo harness — loads the shared plugins and exercises them.
 
-Slim analogue of coframe's devtest.py: loads the plugin root, computes the DB
+Slim analogue of kitebase's devtest.py: loads the plugin root, computes the DB
 schema, regenerates model.py, initialises the sqlite DB and runs a smoke test.
 
 Run from this directory:  uv run demo.py
 """
-import coframe
-import coframe.plugins
-import coframe.utils
-import coframe.source
+import kitebase
+import kitebase.plugins
+import kitebase.utils
+import kitebase.source
 
 
 def setup(generate: bool = True):
     """Load plugins, compute schema, register behaviors, (re)generate model.py."""
-    plugins = coframe.plugins.PluginsManager()
+    plugins = kitebase.plugins.PluginsManager()
     plugins.load_config("config.yaml")
-    coframe.utils.register_standard_handlers(plugins)
+    kitebase.utils.register_standard_handlers(plugins)
     plugins.load_plugins()
 
-    app = coframe.utils.get_app()
+    app = kitebase.utils.get_app()
     app.calc_db(plugins)
 
     # Commons Archivable query behavior — injected, core stays agnostic (GL-19).
@@ -29,7 +29,7 @@ def setup(generate: bool = True):
         model_file = "model.py"
         if plugins.should_regenerate(model_file):
             print("Generating model.py ...")
-            coframe.source.Generator(app).generate(filename=model_file)
+            kitebase.source.Generator(app).generate(filename=model_file)
         else:
             print("model.py up to date.")
 

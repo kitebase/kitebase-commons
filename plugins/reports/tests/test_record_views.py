@@ -1,5 +1,5 @@
 """
-Coframe records in AndRep templates: the acceptance tests of the record views.
+Kitebase records in AndRep templates: the acceptance tests of the record views.
 
 A template reads the declared fields of a SQLAlchemy record — columns and
 relations — and nothing else.  The views live in AndRep (andrep.adapters, and

@@ -11,10 +11,6 @@ demo/*.sqlite
 demo/*.log
 demo/data/
 
-# The demo's lock file: the dependency floats on `main` until coframe has a
-# newer release tag, so a locked commit would only freeze an arbitrary one.
-demo/uv.lock
-
 # Editors / environments
 .venv
 .vscode

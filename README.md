@@ -1,6 +1,6 @@
-# coframe-commons
+# kitebase-commons
 
-Shared, reusable [Coframe](https://github.com/claudiodriussi/coframe) plugins —
+Shared, reusable [Kitebase](https://github.com/kitebase/kitebase) plugins —
 the parts that nearly every management application needs, kept out of both the
 framework core and any individual customer app.
 
@@ -21,7 +21,7 @@ plugins/          the shared root — one directory per subject, each a plugin
 demo/             reference app: the only consumer shipped with the plugins
 ```
 
-`plugins/` is a plugin **root** in the Coframe sense: every directory below it
+`plugins/` is a plugin **root** in the Kitebase sense: every directory below it
 holding a `config.yaml` is a plugin, and plugins never nest. `demo/` sits
 outside the root on purpose — its own `config.yaml` is an *app* config, and a
 root only ever contains plugins.
@@ -66,34 +66,26 @@ app.add_query_behavior(Archivable)
 without dragging in a real customer application. It points at `../plugins` the
 same way an external app would.
 
-It has its own `pyproject.toml` and its own virtual environment, and declares
-coframe as a dependency fetched from the published repository — like any
-application would. It does not need this repository to sit anywhere in
-particular, and neither does a checkout of the library.
+It has its own `pyproject.toml` and its own virtual environment, and runs
+against the kitebase checkout of the workspace, editable: `uv run` uses the
+library as it is on disk, with no extra step. The path is relative
+(`../../server`), so it holds wherever the workspace is cloned; outside it,
+point the source in `pyproject.toml` at a tag of the kitebase repository.
 
 ```bash
 cd demo
-uv sync                          # .venv, and coframe in it
+uv sync                          # .venv, and kitebase in it
 uv run demo.py                   # generates model.py, creates the DB, smoke test
 uv run server_flask.py           # or server_fastapi.py — http://localhost:8302
 ```
 
 Dev credentials: `admin` / `admin`.
 
-Its admin client is the generic shell, built from a `coframe-ui` checkout,
+Its admin client is the generic shell, built from a `kitebase-ui` checkout,
 which is told where this app is and needs to know nothing else:
 
 ```bash
-COFRAME_APP_ROOT=/path/to/commons/demo pnpm --filter shell dev
-```
-
-Working on the library at the same time? Install it over the top of the
-dependency, and run through the venv — `uv run` re-syncs to what
-`pyproject.toml` says and would silently put the published version back:
-
-```bash
-uv pip install -e /path/to/coframe
-.venv/bin/python demo.py
+KITEBASE_APP_ROOT=/path/to/commons/demo pnpm --filter shell dev
 ```
 
 ## License

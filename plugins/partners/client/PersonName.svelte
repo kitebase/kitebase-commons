@@ -48,36 +48,36 @@
 
 <div
   class="rounded-lg border p-4"
-  style="border-color: var(--cf-border); background: var(--cf-surface)"
+  style="border-color: var(--kb-border); background: var(--kb-surface)"
 >
   <div class="mb-3 flex items-baseline gap-2">
-    <h3 class="text-sm font-semibold" style="color: var(--cf-text)">Person name</h3>
-    <span class="text-xs" style="color: var(--cf-text-subtle)">partners.personname · placeholder</span>
+    <h3 class="text-sm font-semibold" style="color: var(--kb-text)">Person name</h3>
+    <span class="text-xs" style="color: var(--kb-text-subtle)">partners.personname · placeholder</span>
   </div>
 
   <div class="flex flex-wrap gap-3">
     <label class="flex flex-1 flex-col gap-1">
-      <span class="text-xs" style="color: var(--cf-text-muted)">Surname</span>
+      <span class="text-xs" style="color: var(--kb-text-muted)">Surname</span>
       <input
         class="rounded border px-2 py-1 text-sm"
-        style="border-color: var(--cf-border-input); background: var(--cf-bg); color: var(--cf-text)"
+        style="border-color: var(--kb-border-input); background: var(--kb-bg); color: var(--kb-text)"
         value={parts.surname}
         oninput={(e) => edit('surname', e.currentTarget.value)}
       />
     </label>
 
     <label class="flex flex-1 flex-col gap-1">
-      <span class="text-xs" style="color: var(--cf-text-muted)">Given name</span>
+      <span class="text-xs" style="color: var(--kb-text-muted)">Given name</span>
       <input
         class="rounded border px-2 py-1 text-sm"
-        style="border-color: var(--cf-border-input); background: var(--cf-bg); color: var(--cf-text)"
+        style="border-color: var(--kb-border-input); background: var(--kb-bg); color: var(--kb-text)"
         value={parts.given}
         oninput={(e) => edit('given', e.currentTarget.value)}
       />
     </label>
   </div>
 
-  <p class="mt-3 text-xs" style="color: var(--cf-text-subtle)">
-    stored as <code style="color: var(--cf-text)">{composed || '—'}</code>
+  <p class="mt-3 text-xs" style="color: var(--kb-text-subtle)">
+    stored as <code style="color: var(--kb-text)">{composed || '—'}</code>
   </p>
 </div>

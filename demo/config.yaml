@@ -5,7 +5,7 @@
 # Real apps live elsewhere and point at ../plugins as an out-of-root root.
 name: demo
 version: 0.0.1
-description: "Reference app for the coframe shared plugins"
+description: "Reference app for the kitebase shared plugins"
 license: MIT
 author: "Claudio Driussi"
 
@@ -30,11 +30,11 @@ db_engine: "sqlite:///demo.sqlite"
 
 # API configuration
 api:
-  prefix: "coframe"
+  prefix: "kitebase"
   port: 8302           # devtest 8300, artmob 8301, demo 8302
 
-# What coframe is here: the application itself, so its client owns "/" and logs
-# people in (coframe.clientui). An admin of a host would say `role: admin`.
+# What kitebase is here: the application itself, so its client owns "/" and logs
+# people in (kitebase.clientui). An admin of a host would say `role: admin`.
 client:
   role: app
 
@@ -51,7 +51,7 @@ locale: en
 # The timezone the stored naive datetimes are written in — the organisation's,
 # not the machine's. A process whose own clock disagrees refuses to start; an
 # app that declares nothing uses the process clock, unchecked. See
-# coframe.apptime.
+# kitebase.apptime.
 timezone: Europe/Rome
 
 menu:

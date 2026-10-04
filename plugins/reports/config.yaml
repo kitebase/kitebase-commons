@@ -1,11 +1,11 @@
 # Printing through AndRep — under construction.
 #
-# The plugin is AndRep's *context adapter* for Coframe: the one place that knows
-# both sides. It hands the renderer Coframe's records (read-only views of the
-# SQLAlchemy models), Coframe's files (the media roots, through a resolver) and
-# Coframe's templates (the `andrep/` folders of the plugins, plus the
+# The plugin is AndRep's *context adapter* for Kitebase: the one place that knows
+# both sides. It hands the renderer Kitebase's records (read-only views of the
+# SQLAlchemy models), Kitebase's files (the media roots, through a resolver) and
+# Kitebase's templates (the `andrep/` folders of the plugins, plus the
 # installation layer). AndRep itself stays a library that knows nothing about
-# Coframe.
+# Kitebase.
 #
 # It cannot be called `andrep`: the folder name becomes a Python package, and it
 # would shadow the library it exists to use. Its name is also the domain of the

@@ -3,33 +3,27 @@
 #   uv sync            create .venv and install
 #   uv run demo.py     run inside it
 #
-# The demo is the reference consumer of these plugins, so it declares coframe
-# the way an application outside this repository would: a dependency fetched
-# from the published repository, not a path guessed from where a checkout
-# happens to sit. Both web frameworks come along: the demo ships a server for
-# each, and having the pair is what makes double support a checked property.
+# The demo is the reference consumer of these plugins, and it runs against the
+# kitebase checkout beside it, editable: in the workspace `uv run` uses the
+# library as it is on disk, with no flag to remember. Both web frameworks come
+# along: the demo ships a server for each, and having the pair is what makes
+# double support a checked property.
 #
-# That way the default is the honest one: the shared plugins are exercised
-# against a published coframe, not against whatever is open in an editor.
-#
-# Working on the library at the same time? Install it over the top and run
-# through the venv, NOT through `uv run` — which re-syncs to what this file
-# says and puts the published version back without asking:
-#
-#   uv pip install -e /path/to/coframe
-#   .venv/bin/python demo.py
+# Outside the workspace the path below does not resolve: point the source at a
+# tag of the kitebase repository instead.
 
 [project]
 name = "demo"
 version = "0.0.1"
-description = "Reference app for the coframe shared plugins"
+description = "Reference app for the kitebase shared plugins"
 requires-python = ">=3.11"
 
 dependencies = [
-    # `main` until the next release tag exists — then pin it to the tag, and
-    # commit the lock file alongside it.
-    "coframe[flask,fastapi] @ git+https://github.com/claudiodriussi/coframe@main",
+    "kitebase[flask,fastapi]",
 ]
 
 [tool.uv]
 package = false
+
+[tool.uv.sources]
+kitebase = { path = "../../server", editable = true }
