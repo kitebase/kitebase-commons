@@ -1,7 +1,7 @@
 # demo — third-party dependencies, and its own virtual environment.
 #
 #   uv sync            create .venv and install
-#   uv run demo.py     run inside it
+#   uv run kite.py     run inside it
 #
 # The demo is the reference consumer of these plugins, and it runs against the
 # kitebase checkout beside it, editable: in the workspace `uv run` uses the

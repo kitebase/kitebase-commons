@@ -75,7 +75,7 @@ point the source in `pyproject.toml` at a tag of the kitebase repository.
 ```bash
 cd demo
 uv sync                          # .venv, and kitebase in it
-uv run demo.py                   # generates model.py, creates the DB, smoke test
+uv run kite.py                   # generates model.py, creates the DB, smoke test
 uv run server_flask.py           # or server_fastapi.py — http://localhost:8302
 ```
 
