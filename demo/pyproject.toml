@@ -9,8 +9,8 @@
 # along: the demo ships a server for each, and having the pair is what makes
 # double support a checked property.
 #
-# Outside the workspace the path below does not resolve: point the source at a
-# tag of the kitebase repository instead.
+# Outside the workspace the paths below do not resolve: point the sources at a
+# tag of the kitebase and andrep repositories instead.
 
 [project]
 name = "demo"
@@ -20,6 +20,9 @@ requires-python = ">=3.11"
 
 dependencies = [
     "kitebase[flask,fastapi]",
+    # The renderer the `reports` plugin prints with: PDF through Playwright,
+    # whose browser is installed once with `uv run playwright install chromium`.
+    "andrep[playwright,sqlalchemy]",
 ]
 
 [tool.uv]
@@ -27,3 +30,5 @@ package = false
 
 [tool.uv.sources]
 kitebase = { path = "../../server", editable = true }
+# The workspace's checkout (tools/clone-all.sh puts it there).
+andrep = { path = "../../andrep/renderer", editable = true }

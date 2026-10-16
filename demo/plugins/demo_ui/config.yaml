@@ -3,4 +3,4 @@ version: 0.0.1
 description: Menu and views of the demo application
 license: MIT
 author: "Claudio Driussi"
-depends_on: [common, users, partners]
+depends_on: [common, users, partners, reports]

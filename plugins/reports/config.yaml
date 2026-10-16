@@ -1,21 +1,27 @@
-# Printing through AndRep — under construction.
+# Printing through AndRep.
 #
 # The plugin is AndRep's *context adapter* for Kitebase: the one place that knows
 # both sides. It hands the renderer Kitebase's records (read-only views of the
-# SQLAlchemy models), Kitebase's files (the media roots, through a resolver) and
-# Kitebase's templates (the `andrep/` folders of the plugins, plus the
-# installation layer). AndRep itself stays a library that knows nothing about
-# Kitebase.
+# SQLAlchemy models), Kitebase's files (named public roots, through a resolver)
+# and Kitebase's templates (the `andrep/` folders of the plugins, plus the
+# installation layer `_andrep/`). AndRep itself stays a library that knows
+# nothing about Kitebase.
 #
 # It cannot be called `andrep`: the folder name becomes a Python package, and it
 # would shadow the library it exists to use. Its name is also the domain of the
-# report endpoints (`reports.print`, `reports.run`).
+# report endpoints (`reports.run`).
 #
-# Nothing here yet: no tables, no endpoints, no Python. No application should
-# include it until it has them — see README.md for the state and the plan.
+# A plugin with reports declares `depends_on: [reports]`, registers its loops
+# with `@report('domain.name')` from reports.registry, and keeps its templates
+# in its `andrep/` folder. See README.md.
 name: reports
 version: 0.0.1
-description: Printing through AndRep — under construction
+description: Printing through AndRep
 license: MIT
 author: "Claudio Driussi"
 url: https://claudiodriussi.it
+
+requires:
+  # PDF through Playwright, whose browser is installed once with
+  # `uv run playwright install chromium`.
+  python: ["andrep[playwright,sqlalchemy]"]

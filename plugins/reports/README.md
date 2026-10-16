@@ -2,11 +2,11 @@
 
 Printing for Kitebase applications through [AndRep](https://github.com/claudiodriussi/andrep).
 
-**Under construction.** This directory holds the plan and the way to test it;
-the code comes when the plugin is implemented. No application should include it
-yet.
+**First version.** A registered report runs through `reports.run` and comes
+back as PDF, HTML or JSON. The print button in the Navigator, with its dialog,
+is the next step.
 
-## What it will be
+## What it is
 
 AndRep renders templates; the report *loop* — read the data, emit bands — is
 Python, and in Kitebase it runs in the backend. Between the two sits a **context
@@ -15,13 +15,37 @@ adapter**, written once per platform: it is this plugin.
 | Piece | What it gives AndRep | Where it comes from |
 |---|---|---|
 | Record view | Kitebase records passed to templates as they are, exposing only their declared fields | `SQLAlchemyView` of AndRep, derived here: virtual columns as `extra_fields`, and what a relation may reach |
-| Resolver | `root:path` references printed as images | the media roots of `config.yaml`, restricted to the references the loop emitted |
-| Loader | templates by qualified name, with their variants | the `andrep/` folder of each plugin, in dependency order, plus the installation layer on top |
-| Command | a `print` command in the Navigator, answering with a `choose` menu | endpoints under `reports.*` |
+| Resolver | `root:path` references printed as images | the public roots first (plugin assets); with media columns, also the references the template read from an `Image`/`File` column. Network always off |
+| Loader | the templates of a report: every file whose name starts with the report's name | the `andrep/` folder of each plugin, in dependency order, plus the installation layer `_andrep/` on top |
+| Command | `reports.run`, through the download route; next, a print button in the Navigator: one report runs at once, more open a menu; then a dialog for template, title and destination | endpoints under `reports.*` |
 
 A plugin that ships reports declares `depends_on: [reports]`, registers its
-loops with `@report('domain.name')` and keeps its templates in
-`andrep/<report>/<variant>.json`.
+loops with `@report('domain.name')` and keeps its templates flat in its
+`andrep/` folder, the report's name as prefix:
+
+```python
+from reports.registry import load_records, report
+
+@report('myplugin.products', renderer=ProductsRenderer)
+def products(r, params):
+    for row in load_records('Product', params['ids'], load=['category']):
+        r.emit('row')
+```
+
+The domain is the plugin's name: `myplugin` registers `myplugin.*` only, and a
+second registration of a name needs `replace=True`. `load_records` gives the
+records in the order of the ids, with the relations named in `load` read
+together; the template reads what it needs from them.
+
+```
+myplugin/andrep/products.json
+myplugin/andrep/products_a.json
+_andrep/products_a.json           # the installation layer wins
+_andrep/products_store.json       # a variant born in production
+```
+
+The plugin's name in front (`myplugin.products_a.json`) is optional, for when two
+plugins would collide in `_andrep/`.
 
 The design, point by point, is in the Kitebase workspace documentation
 (`docs/pending/reporting.md`, and `docs/pending/media.md` for files and
@@ -29,69 +53,72 @@ resources).
 
 ## Dependencies
 
-AndRep with the `sqlalchemy` extra, from PyPI or from a checkout
-(`uv pip install -e "/path/to/andrep/renderer[sqlalchemy]"`), plus its PDF
-backend. SQLAlchemy itself is already there through kitebase.
+Declared in `config.yaml` under `requires`: `andrep[playwright,sqlalchemy]`.
+Kitebase checks it when the plugins load, and the application installs it,
+from PyPI or from a checkout:
+
+```bash
+uv add "andrep[playwright,sqlalchemy]"
+uv run playwright install chromium     # once: the browser that makes the PDF
+```
+
+The demo takes AndRep from the workspace's checkout, editable, beside kitebase.
 
 ## Status
 
-- **Record views** — in AndRep. The generic base is `andrep.adapters`
-  (`RecordView`, `register_view`: fields from the ORM's metadata, relations
-  wrapped again, declared safe methods only), and each ORM is a module of its
-  own, imported by the integration that needs it. Here, once when the plugin
-  loads:
-
-  ```python
-  from andrep.adapters import register_view
-  from andrep.adapters.sqlalchemy import SQLAlchemyView
-
-  register_view(Base, SQLAlchemyView)   # a Kitebase subclass, when it has one
-  ```
-
-  AndRep stays anonymous: views for vertical platforms live in those
-  platforms' integration modules, never in AndRep. How a view is written: the
+- **Record views**: in AndRep (`andrep.adapters`, `andrep.adapters.sqlalchemy`),
+  derived here as `KitebaseView`: virtual columns readable, secret columns
+  (`secret: true`, a user's password) not a field. How a view is written: the
   AndRep manual, "Writing an adapter"; what it guarantees: AndRep's
   `docs/SECURITY.md`, "For integrators".
-- **Template security** — done in AndRep: expressions checked when a template is
+- **Template security**: in AndRep. Expressions checked when a template is
   loaded, data-only namespace, resources confined and embedded, PDF backends
   limited to `data:` URLs.
-- **Everything else in the table above** — to do.
+- **Loader, resolver, registry, `reports.run`**: done. The public roots are,
+  for now, the `andrep/` folders of the plugins, each named after its plugin
+  (`myplugin:logo.png`).
+- **To do**: the print button and its dialog, the catalog of a table's
+  reports, the ids checked again against the view's query, references read from
+  `Image`/`File` columns, rendering in a worker with a timeout.
 
 ## Testing
 
 Three levels, each with its own command.
 
-**AndRep, whenever its view modules change** — its own suite, from its own venv:
+**AndRep, whenever its view modules change**: its own suite, from its own venv:
 
 ```bash
 cd /path/to/andrep/renderer && ../.venv/bin/python -m pytest -q
 ```
 
-**This plugin** — `tests/` here, run from the demo's venv with AndRep and
-pytest installed:
+**This plugin**: `tests/` here, run from the demo's venv, where AndRep is a
+dependency (pytest is installed by hand, since `uv sync` removes it):
 
 ```bash
 cd commons/demo
-uv pip install pytest -e "/path/to/andrep/renderer[sqlalchemy]"
-.venv/bin/python -m pytest -q ../plugins/reports/tests
+uv pip install pytest
+uv run pytest -q ../plugins/reports/tests
 ```
 
-`test_record_views.py` is already there: the acceptance tests of the record
-views on a SQLAlchemy model — columns, relations, cycles, what a template can
-never reach, safe methods whose arguments must be data, identity of two views of
-one record. They pass against AndRep from 0b17cde on; with an older AndRep
-they are skipped, saying why.
+- `test_record_views.py`: the acceptance tests of the record views on a plain
+  SQLAlchemy model: columns, relations, cycles, what a template can never
+  reach, safe methods whose arguments must be data, identity of two views of
+  one record.
+- `test_reports.py`: the plugin on a Kitebase application built for the test:
+  registry and domains, records in the order asked, the Kitebase view (virtual
+  and secret columns), the variants by prefix and the installation layer, the
+  resolver (a public root readable; relative paths, other roots and URLs
+  refused), `reports.run` and its refusals.
 
-What must be covered next, beyond "a report prints":
+Still to cover, with the pieces that bring them: a relation does not reach rows
+the user's query would not have returned; a reference read from an `Image`
+column is printed; rendering runs in a worker with a timeout.
 
-- the Kitebase view: virtual columns readable; a relation does not reach rows the
-  user's query would not have returned;
-- the resolver: a reference the loop emitted is printed, a reference written by
-  hand in the template is refused, a public root (plugin assets) is readable;
-- the loader: an installation override replaces the plugin's template, a
-  variant born in production is listed, a name outside the layers is refused;
-- rendering runs in a worker with a timeout, and the preview is served for a
-  sandboxed `<iframe>`.
+**The demo app**: `demo_ui.phonebook`, the partners' phone book, through the
+download route:
 
-**The demo app** — a real print from the Navigator, once the demo includes the
-plugin.
+```bash
+curl -X POST localhost:8302/kitebase/download/reports.run \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"report": "demo_ui.phonebook", "ids": [3, 1], "format": "pdf"}' -o phonebook.pdf
+```
