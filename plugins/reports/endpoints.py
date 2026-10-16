@@ -25,6 +25,8 @@ from kitebase.i18n import _, _f
 from reports import registry
 from reports.context import LayeredLoader, PublicResolver, plugin_layers, public_roots
 
+HEADER_LINES = 4
+
 FORMATS = {
     'pdf':  ('pdf', 'application/pdf', 'inline'),
     'html': ('html', 'text/html', 'attachment'),
@@ -34,6 +36,13 @@ FORMATS = {
 
 def _refuse(message: str) -> Dict[str, Any]:
     return {'status': 'error', 'code': 400, 'message': message}
+
+
+def header_lines(config: Dict[str, Any]) -> list:
+    """`reports.header` padded to four lines: the standard header reads four,
+    and one that config.yaml leaves out prints empty."""
+    lines = [str(x) for x in ((config.get('reports') or {}).get('header') or [])]
+    return lines + [''] * (HEADER_LINES - len(lines))
 
 
 def variants(report: registry.Report, loader: LayeredLoader):
@@ -70,6 +79,11 @@ def run(data: Dict[str, Any]) -> Any:
     r = report.renderer(template, loader=loader, resolver=PublicResolver(public_roots(app.pm)))
     if data.get('title'):
         r.title = str(data['title'])
+    # What the standard header prints beside title, date and page: the lines
+    # of `reports.header` in config.yaml (AndRep's `_r.name`), and the name of
+    # the template, which tells whoever holds the paper how it was printed.
+    r.name = header_lines(app.pm.config)
+    r.template_name = template
     user = (BaseApp.get_context() or {}).get('username')
     if user:
         r.report_user = user

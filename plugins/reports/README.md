@@ -51,6 +51,27 @@ The design, point by point, is in the Kitebase workspace documentation
 (`docs/pending/reporting.md`, and `docs/pending/media.md` for files and
 resources).
 
+### The standard header
+
+`andrep/` here holds `standard_header` and `standard_header_landscape`: the
+lines of `reports.header` in the application's config.yaml (free text, four
+lines), the date, the name of the template it was printed with, the page and
+the title chosen in the dialog. A template takes one by composition, and a template that needs a
+different header declares its own:
+
+```json
+"composition": [{"rule": "InsBefore", "target": "standard_header"}]
+```
+
+`reports` is the first layer of the loader, so a plugin or the installation's
+`_andrep/` can restyle the header of every report at once. Inclusions are one
+level deep: the composition of an included template is not applied.
+
+```yaml
+reports:
+  header: ["Example Trading Ltd", "1 Market Street, Springfield", "info@example.com", "VAT 00000000000"]
+```
+
 ## Dependencies
 
 Declared in `config.yaml` under `requires`: `andrep[playwright,sqlalchemy]`.

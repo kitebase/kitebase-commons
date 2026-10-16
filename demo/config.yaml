@@ -45,6 +45,15 @@ dataview:
   page_size: 100
   reload_all_threshold: 5000
 
+# The lines of the standard report header (reports/andrep/standard_header.json),
+# beside title, date and page. Free text: whoever installs composes them.
+reports:
+  header:
+    - "Example Trading Ltd"
+    - "1 Market Street, Springfield"
+    - "info@example.com"
+    - "VAT 00000000000"
+
 # Application locale
 locale: en
 

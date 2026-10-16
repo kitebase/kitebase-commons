@@ -123,17 +123,26 @@ def app(tmp_path_factory):
     write_json(andrep / 'resources.json', make_template({'row': ["[ref | load]"]}))
     (andrep / 'logo.txt').write_text('a public asset')
     write_json(andrep / 'other.json', make_template({'row': ['other']}))
+    std = [{'rule': 'InsBefore', 'target': 'standard_header'}]
+    write_json(andrep / 'customers_headed.json', make_template(
+        {'row': ['[row.id]']}, composition=std))
+    landscape = [{'rule': 'InsBefore', 'target': 'standard_header_landscape'}]
+    write_json(andrep / 'customers_landscape.json', make_template(
+        {'row': ['[row.id]']}, composition=landscape))
     (root / 'secret.txt').write_text('outside every root')
 
     installation = root / '_andrep'
     write_json(installation / 'customers_wide.json', make_template({'row': ['[row.last_name]']}))
     write_json(installation / 'customers_store.json', make_template({'row': ['[row.first_name]']}))
+    write_json(installation / 'standard_header_landscape.json',
+               make_template({'page_header': ['installed header [_r.name[0]]']}))
 
     (root / 'config.yaml').write_text(yaml.safe_dump({
         'name': 'shopapp',
         'plugins': [{'path': str(COMMONS), 'include': ['common', 'users', 'reports']},
                     'plugins'],
         'db_engine': f'sqlite:///{root / "shop.sqlite"}',
+        'reports': {'header': ['Example Trading Ltd', 'VAT 00000000000']},
     }))
 
     cwd = os.getcwd()
@@ -263,7 +272,8 @@ def test_the_variants_are_the_files_with_the_report_prefix(app):
 
     loader = LayeredLoader(plugin_layers(app.pm))
     assert variants(registry.get('shop.customers'), loader) == [
-        'customers', 'customers_store', 'customers_wide', 'shop.customers_short']
+        'customers', 'customers_headed', 'customers_landscape', 'customers_store',
+        'customers_wide', 'shop.customers_short']
 
 
 def test_the_installation_layer_wins(app):
@@ -279,6 +289,25 @@ def test_a_variant_born_in_production_runs(app):
 def test_the_domain_prefixed_variant_runs(app):
     assert rows(run(app, report='shop.customers', ids=[1], template='shop.customers_short',
                     format='json')) == [[1]]
+
+
+def html_of(app, template, **data):
+    result = run(app, report='shop.customers', ids=[1], template=template, format='html', **data)
+    assert isinstance(result, FileResult), result
+    return result.content.decode('utf-8')
+
+
+def test_the_standard_header_comes_from_the_reports_plugin(app):
+    html = html_of(app, 'customers_headed', title='Our customers')
+    for text in ('Example Trading Ltd', 'VAT 00000000000', 'Our customers',
+                 'customers_headed'):      # the template it was printed with
+        assert text in html
+    assert '[#' not in html                # the lines config.yaml leaves out print empty
+
+
+def test_the_installation_restyles_a_shared_part(app):
+    html = html_of(app, 'customers_landscape')
+    assert 'installed header Example Trading Ltd' in html
 
 
 @pytest.mark.parametrize('template', ['other', '../config', 'users', '/etc/passwd'])

@@ -14,113 +14,19 @@
     "locale": "",
     "currency": ""
   },
-  "rows": [
+  "composition": [
     {
-      "id": "r1",
-      "name": "page_header",
-      "cells": [
-        {
-          "id": "c1",
-          "content": "[_r.title]",
-          "type": "text",
-          "x": 0,
-          "width": 518,
-          "height": 26,
-          "wrap": false,
-          "autoStretch": false,
-          "style": {
-            "fontFamily": "Arial",
-            "fontSize": 14,
-            "fontWeight": "bold",
-            "fontStyle": "normal",
-            "textDecoration": "none",
-            "color": "#000000",
-            "backgroundColor": "#ffffff",
-            "alignment": "left",
-            "verticalAlignment": "top",
-            "paddingTop": 2,
-            "paddingBottom": 2,
-            "paddingLeft": 4,
-            "paddingRight": 4,
-            "borders": {
-              "top": {
-                "width": 0,
-                "style": "none",
-                "color": "#000000"
-              },
-              "bottom": {
-                "width": 0,
-                "style": "none",
-                "color": "#000000"
-              },
-              "left": {
-                "width": 0,
-                "style": "none",
-                "color": "#000000"
-              },
-              "right": {
-                "width": 0,
-                "style": "none",
-                "color": "#000000"
-              }
-            }
-          }
-        },
-        {
-          "id": "c2",
-          "content": "[_date]",
-          "type": "text",
-          "x": 518,
-          "width": 200,
-          "height": 26,
-          "wrap": false,
-          "autoStretch": false,
-          "style": {
-            "fontFamily": "Arial",
-            "fontSize": 9,
-            "fontWeight": "normal",
-            "fontStyle": "normal",
-            "textDecoration": "none",
-            "color": "#555555",
-            "backgroundColor": "#ffffff",
-            "alignment": "right",
-            "verticalAlignment": "top",
-            "paddingTop": 2,
-            "paddingBottom": 2,
-            "paddingLeft": 4,
-            "paddingRight": 4,
-            "borders": {
-              "top": {
-                "width": 0,
-                "style": "none",
-                "color": "#000000"
-              },
-              "bottom": {
-                "width": 0,
-                "style": "none",
-                "color": "#000000"
-              },
-              "left": {
-                "width": 0,
-                "style": "none",
-                "color": "#000000"
-              },
-              "right": {
-                "width": 0,
-                "style": "none",
-                "color": "#000000"
-              }
-            }
-          }
-        }
-      ]
-    },
+      "rule": "InsBefore",
+      "target": "standard_header"
+    }
+  ],
+  "rows": [
     {
       "id": "r5",
       "name": "page_header",
       "cells": [
         {
-          "id": "c3",
+          "id": "c1",
           "content": "Name",
           "type": "text",
           "x": 0,
@@ -167,7 +73,7 @@
           }
         },
         {
-          "id": "c4",
+          "id": "c2",
           "content": "City",
           "type": "text",
           "x": 250,
@@ -214,7 +120,7 @@
           }
         },
         {
-          "id": "c5",
+          "id": "c3",
           "content": "Phone",
           "type": "text",
           "x": 380,
@@ -261,7 +167,7 @@
           }
         },
         {
-          "id": "c6",
+          "id": "c4",
           "content": "Email",
           "type": "text",
           "x": 490,
@@ -314,7 +220,7 @@
       "name": "row",
       "cells": [
         {
-          "id": "c7",
+          "id": "c5",
           "content": "[row.name]",
           "type": "text",
           "x": 0,
@@ -361,7 +267,7 @@
           }
         },
         {
-          "id": "c8",
+          "id": "c6",
           "content": "[row.city]",
           "type": "text",
           "x": 250,
@@ -408,7 +314,7 @@
           }
         },
         {
-          "id": "c9",
+          "id": "c7",
           "content": "[row.phone]",
           "type": "text",
           "x": 380,
@@ -455,7 +361,7 @@
           }
         },
         {
-          "id": "c10",
+          "id": "c8",
           "content": "[row.email]",
           "type": "text",
           "x": 490,
@@ -508,7 +414,7 @@
       "name": "totals",
       "cells": [
         {
-          "id": "c11",
+          "id": "c9",
           "content": "[_r.count] contacts",
           "type": "text",
           "x": 0,
@@ -525,59 +431,6 @@
             "color": "#000000",
             "backgroundColor": "#ffffff",
             "alignment": "left",
-            "verticalAlignment": "top",
-            "paddingTop": 2,
-            "paddingBottom": 2,
-            "paddingLeft": 4,
-            "paddingRight": 4,
-            "borders": {
-              "top": {
-                "width": 1,
-                "style": "solid",
-                "color": "#9ca3af"
-              },
-              "bottom": {
-                "width": 0,
-                "style": "none",
-                "color": "#000000"
-              },
-              "left": {
-                "width": 0,
-                "style": "none",
-                "color": "#000000"
-              },
-              "right": {
-                "width": 0,
-                "style": "none",
-                "color": "#000000"
-              }
-            }
-          }
-        }
-      ]
-    },
-    {
-      "id": "r4",
-      "name": "page_footer",
-      "cells": [
-        {
-          "id": "c12",
-          "content": "Page [_page]",
-          "type": "text",
-          "x": 0,
-          "width": 718,
-          "height": 16,
-          "wrap": false,
-          "autoStretch": false,
-          "style": {
-            "fontFamily": "Arial",
-            "fontSize": 9,
-            "fontWeight": "normal",
-            "fontStyle": "normal",
-            "textDecoration": "none",
-            "color": "#555555",
-            "backgroundColor": "#ffffff",
-            "alignment": "right",
             "verticalAlignment": "top",
             "paddingTop": 2,
             "paddingBottom": 2,
