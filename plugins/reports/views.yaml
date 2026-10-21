@@ -1,0 +1,33 @@
+# The print dialog: the part every report shares. reports.print fills the
+# choices of `template` with the report's variants, appends the fields of the
+# report's own options form, and sends the result as the `form` step of the
+# chain. A report whose options need a lookup declares `presentation: page`
+# in its options form, and that wins.
+#
+# `template`, `title` and `format` are reserved: the values of the dialog
+# reach reports.run flat, and an option with one of these names is refused.
+views:
+  reports_print_form:
+    type: form
+    presentation: dialog
+    source: {}
+    layout:
+      - type: section
+        id: print
+        fields:
+          - name: template
+            label: Template
+            type: String
+            required: true
+          - name: title
+            label: Title
+            type: String
+          - name: format
+            label: Output
+            type: String
+            required: true
+            choices:
+              - {value: pdf, label: Preview (PDF)}
+              - {value: html, label: HTML}
+              - {value: json, label: JSON}
+              - {value: xlsx, label: Spreadsheet (Excel)}

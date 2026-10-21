@@ -4,7 +4,7 @@ A report is a name bound to a loop: the function that reads the data and
 emits the bands. The client names a report, never a Python module, so the
 registry is the only way from a request to the code that runs.
 
-    @report('sales.invoice', renderer=InvoiceRenderer)
+    @report('sales.invoice', table='Invoice', label='Invoice', renderer=InvoiceRenderer)
     def invoice(r, params):
         for row in load_records('Invoice', params['ids'], load=['lines']):
             r.emit('band_desc')
@@ -14,6 +14,10 @@ plugin `sales` registers `sales.*` only. Registering a name twice is an error
 unless the second one says `replace=True`, which is how a derived plugin swaps
 a loop. One loop may be registered under several names, each with fixed
 `params` merged into the ones it receives.
+
+`table` puts the report in the catalog of that table: what the Print button of
+its views offers, under `label`. A report without a table is reached only by
+name, as the last step of a chain.
 """
 import contextvars
 from dataclasses import dataclass, field
@@ -37,6 +41,8 @@ class Report:
     on_empty: str = 'all'         # with no ticked rows: 'all' visible rows, or the current 'row'
     options: Optional[str] = None  # id of the form of its options
     params: Dict[str, Any] = field(default_factory=dict)
+    table: Optional[str] = None    # the table whose Print button offers it
+    label: Optional[str] = None    # what the Print button shows; default the short name
 
     @property
     def domain(self) -> str:
@@ -46,13 +52,18 @@ class Report:
     def short_name(self) -> str:
         return self.name.split('.', 1)[1]
 
+    @property
+    def title(self) -> str:
+        return self.label or self.short_name
+
 
 _REPORTS: Dict[str, Report] = {}
 
 
 def register(name: str, loop: Callable, *, domain: str, replace: bool = False,
              renderer: type = AndRepRenderer, input: str = 'view', on_empty: str = 'all',
-             options: Optional[str] = None, params: Optional[Dict[str, Any]] = None) -> Report:
+             options: Optional[str] = None, params: Optional[Dict[str, Any]] = None,
+             table: Optional[str] = None, label: Optional[str] = None) -> Report:
     """Bind `name` to `loop`. Raises ValueError on a name the registry refuses."""
     prefix, dot, rest = name.partition('.')
     if not dot or not prefix or not rest:
@@ -74,7 +85,7 @@ def register(name: str, loop: Callable, *, domain: str, replace: bool = False,
                          f"pass replace=True to replace it")
 
     found = _REPORTS[name] = Report(name, loop, renderer, input, on_empty, options,
-                                    dict(params or {}))
+                                    dict(params or {}), table, label)
     return found
 
 
@@ -102,6 +113,11 @@ def get(name: str) -> Optional[Report]:
 
 def all_reports() -> Dict[str, Report]:
     return dict(_REPORTS)
+
+
+def for_table(table: str) -> list:
+    """The catalog of `table`: its reports, in the order they were registered."""
+    return [r for r in _REPORTS.values() if r.table == table]
 
 
 # ── Records ───────────────────────────────────────────────────────────────────

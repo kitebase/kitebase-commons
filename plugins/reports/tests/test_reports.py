@@ -7,6 +7,7 @@ and reports, plus `shop`, written here, with a virtual column, a relation, two
 report loops, templates in its `andrep/` folder and an installation layer.
 """
 import importlib.util
+import io
 import json
 import os
 import sys
@@ -22,7 +23,7 @@ import kitebase.plugins  # noqa: E402
 import kitebase.source  # noqa: E402
 import kitebase.utils  # noqa: E402
 from kitebase.endpoints import FileResult  # noqa: E402
-from kitebase.server_utils import handle_download  # noqa: E402
+from kitebase.server_utils import handle_download, handle_generic_endpoint  # noqa: E402
 
 from helpers import make_template  # noqa: E402
 
@@ -69,10 +70,22 @@ class Counting(AndRepRenderer):
         self.count += 1
 
 
-@report('shop.customers', renderer=Counting)
+@report('shop.customers', table='Customer', label='Customers', renderer=Counting,
+        options='customer_options')
 def customers(r, params):
     for row in load_records('Customer', params['ids'], load=['orders']):
         r.emit('row')
+
+
+@report('shop.cards', table='Customer', on_empty='row', options='card_options')
+def cards(r, params):
+    for row in load_records('Customer', params['ids']):
+        r.emit('row')
+
+
+@report('shop.clash', table='Order', options='clash_options')
+def clash(r, params):
+    r.emit('row')
 
 
 @report('shop.users')
@@ -95,6 +108,18 @@ def resources(r, params):
 '''
 
 
+SHOP_VIEWS = {'views': {
+    'customer_options': {'type': 'form', 'source': {}, 'layout': [
+        {'type': 'section', 'id': 'options', 'fields': [
+            {'name': 'with_orders', 'type': 'Boolean', 'default': True}]}]},
+    'card_options': {'type': 'form', 'source': {}, 'presentation': 'page', 'layout': [
+        {'type': 'section', 'id': 'options', 'fields': [
+            {'name': 'owner_id', 'type': 'Integer', 'foreign_key': {'target': 'User.id'}}]}]},
+    'clash_options': {'type': 'form', 'source': {}, 'layout': [
+        {'type': 'section', 'id': 'options', 'fields': [{'name': 'title', 'type': 'String'}]}]},
+}}
+
+
 def write_json(path: Path, data) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data))
@@ -110,6 +135,7 @@ def app(tmp_path_factory):
     (shop / 'model.yaml').write_text(yaml.safe_dump(SHOP_MODEL))
     (shop / 'model.py').write_text(SHOP_PY)
     (shop / 'shop_reports.py').write_text(textwrap.dedent(SHOP_REPORTS))
+    (shop / 'views.yaml').write_text(yaml.safe_dump(SHOP_VIEWS))
 
     andrep = shop / 'andrep'
     write_json(andrep / 'customers.json', make_template(
@@ -117,6 +143,8 @@ def app(tmp_path_factory):
          'page_footer': ['[_r.count]']}, name='Customers'))
     write_json(andrep / 'customers_wide.json', make_template({'row': ['[row.id]']}))
     write_json(andrep / 'shop.customers_short.json', make_template({'row': ['[row.id]']}))
+    write_json(andrep / 'cards.json', make_template({'row': ['[row.id]']}))
+    write_json(andrep / 'clash.json', make_template({'row': ['x']}))
     write_json(andrep / 'users.json', make_template({'row': ['[row.username]', '[row.password]']}))
     write_json(andrep / 'side_customer.json', make_template({'row': ['[side]']}))
     write_json(andrep / 'side_supplier.json', make_template({'row': ['[side]']}))
@@ -180,6 +208,11 @@ def run(app, **data):
     return handle_download(app.cp, 'reports.run', data, {'username': 'tester', 'id': 1})
 
 
+def press_print(app, **data):
+    """reports.print through the dispatcher: the body the client applies."""
+    return handle_generic_endpoint(app.cp, 'reports.print', data, {'username': 'tester', 'id': 1})
+
+
 def rows(result):
     """The values of the `row` bands of a JSON result."""
     assert isinstance(result, FileResult), result
@@ -226,6 +259,14 @@ def test_the_decorator_takes_the_domain_from_the_module(app):
     loop.__module__ = 'sales.reports'
     with pytest.raises(ValueError, match="must start with 'sales.'"):
         registry.report('shop.stolen')(loop)
+
+
+def test_the_catalog_of_a_table_is_its_reports_in_order(app):
+    from reports import registry
+    catalog = registry.for_table('Customer')
+    assert [r.name for r in catalog] == ['shop.customers', 'shop.cards']
+    assert [r.title for r in catalog] == ['Customers', 'cards']
+    assert registry.for_table('Partner') == []
 
 
 def test_one_loop_under_two_names_gets_each_its_params(app):
@@ -328,7 +369,7 @@ def test_the_loader_refuses_names_that_are_not_file_names(app, name):
 
 def resource(app, ref):
     """The document printing `[ref | load]` of `@ref`: formatters run when it is built."""
-    result = run(app, report='shop.resources', options={'ref': '@' + ref}, format='html')
+    result = run(app, report='shop.resources', ref='@' + ref, format='html')
     assert isinstance(result, FileResult), result
     return result.content.decode('utf-8')
 
@@ -370,3 +411,93 @@ def test_what_cannot_run_is_refused(app, data, message):
     result = run(app, **data)
     assert result['status_code'] == 400
     assert message in result['message']
+
+
+def test_options_arrive_flat_beside_what_run_reads(app):
+    from reports import registry
+    seen = {}
+
+    def loop(r, params):
+        seen.update(params)
+        r.emit('row')
+
+    registry.register('shop.side_customer', loop, domain='shop', input='none',
+                      params={'side': 'customer'}, replace=True)
+    try:
+        run(app, report='shop.side_customer', format='json', title='T', with_orders=False)
+    finally:
+        registry.register('shop.side_customer', registry.get('shop.side_supplier').loop,
+                          domain='shop', input='none', params={'side': 'customer'}, replace=True)
+    assert seen['options'] == {'with_orders': False}
+
+
+# ── The Print button ──────────────────────────────────────────────────────────
+
+def test_a_table_with_several_reports_answers_a_menu(app):
+    body = press_print(app, table='Customer', id=1, view_ids=[2, 1])['data']
+    assert body['action'] == 'choose'
+    assert [o['label'] for o in body['options']] == ['Customers', 'cards']
+    then = body['options'][0]['then']
+    assert then == {'action': 'endpoint', 'op': 'reports.print',
+                    'params': {'table': 'Customer', 'id': 1, 'view_ids': [2, 1],
+                               'report': 'shop.customers'}}
+
+
+def test_the_picked_report_answers_its_dialog(app):
+    body = press_print(app, table='Customer', id=1, view_ids=[2, 1], report='shop.customers')['data']
+    assert body['action'] == 'form'
+    view = body['view']
+    assert view['presentation'] == 'dialog'
+    names = [f['name'] for s in view['layout'] for f in s['fields']]
+    assert names == ['template', 'title', 'format', 'with_orders']
+    template = view['layout'][0]['fields'][0]
+    assert {c['value'] for c in template['choices']} >= {'customers', 'customers_wide',
+                                                        'customers_store', 'shop.customers_short'}
+    assert body['values'] == {'template': 'customers', 'title': 'Customers', 'format': 'pdf',
+                              'with_orders': True}
+    assert body['then'] == {'action': 'download', 'op': 'reports.run',
+                            'params': {'report': 'shop.customers', 'ids': [2, 1]}}
+
+
+def test_the_ticked_rows_win_over_the_screen(app):
+    body = press_print(app, table='Customer', ids=[1], view_ids=[2, 1],
+                       report='shop.customers')['data']
+    assert body['then']['params']['ids'] == [1]
+
+
+def test_a_card_prints_the_current_row_and_its_form_says_page(app):
+    body = press_print(app, table='Customer', id=2, view_ids=[2, 1], report='shop.cards')['data']
+    assert body['then']['params']['ids'] == [2]
+    assert body['view']['presentation'] == 'page'
+
+
+def test_what_the_dialog_sends_runs(app):
+    body = press_print(app, table='Customer', view_ids=[2, 1], report='shop.customers')['data']
+    result = run(app, **body['then']['params'], **{**body['values'], 'format': 'json'})
+    assert [r[1] for r in rows(result)] == ['Turing', 'Byron']
+
+
+@pytest.mark.parametrize('data, message', [
+    ({'table': 'Customer', 'report': 'shop.customers'}, 'No rows to print'),
+    ({'table': 'Customer', 'report': 'shop.users', 'ids': [1]}, 'Unknown report'),
+    ({'table': 'Order', 'ids': [1]}, "'title' of report 'shop.clash' uses a reserved name"),
+])
+def test_what_cannot_be_printed_is_refused(app, data, message):
+    result = press_print(app, **data)
+    assert result['status_code'] == 400
+    assert message in result['message']
+
+
+def test_a_table_without_reports_says_so(app):
+    body = press_print(app, table='User', ids=[1])['data']
+    assert body == {'message': 'Nothing to print here'}
+
+
+def test_the_spreadsheet_is_one_row_per_band_with_typed_values(app):
+    from openpyxl import load_workbook
+    result = run(app, report='shop.customers', template='shop.customers_short',
+                 ids=[2, 1], format='xlsx')
+    assert result.disposition == 'attachment'
+    sheet = load_workbook(io.BytesIO(result.content)).active
+    rows = [list(r) for r in sheet.iter_rows(values_only=True) if r[0] == 'row']
+    assert rows == [['row', 2], ['row', 1]]

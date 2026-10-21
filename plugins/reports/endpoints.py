@@ -1,41 +1,100 @@
-"""`reports.run`: run a registered report and answer with the document.
+"""The Print button and the report it runs.
 
-Called through the download route, with everything already decided:
+`reports.print` answers the Print button of a view. The view sends what it
+knows, and the server decides the rest:
+
+    {
+      "table":    "Partner",
+      "id":       3,                      # the current row
+      "ids":      [3, 1],                 # the ticked rows
+      "view_ids": [3, 1, 2],              # the rows on screen, in their order
+      "report":   "demo_ui.phonebook"     # once picked, when the table has several
+    }
+
+With several reports for the table the answer is a menu of them; with one, or
+once picked, it is the `form` step of the print dialog, whose `then` downloads
+from `reports.run` with the rows the report takes (`on_empty`).
+
+`reports.run` is called through the download route, with everything decided:
 
     {
       "report":   "demo_ui.phonebook",
-      "template": "phonebook_a",          # one of the report's variants; default its name
-      "format":   "pdf" | "html" | "json",
       "ids":      [3, 1, 2],              # in the order to print them
-      "options":  {...},                  # the values of the report's form
-      "title":    "Phone book"            # the template's own name when missing
+      "template": "phonebook_a",          # one of the report's variants; default its name
+      "title":    "Phone book",           # the template's own name when missing
+      "format":   "pdf" | "html" | "json" | "xlsx",
+      ...                                 # every other key is an option of the report
     }
 
-The PDF opens in a tab, from which it is printed. HTML and JSON are saved:
-HTML made from data, opened as a blob, would run with the app's origin.
+The values of the dialog arrive flat, so the names above are reserved: an
+option named like one of them is refused when the dialog is built.
+
+The PDF opens in a tab, from which it is printed. HTML, JSON and the
+spreadsheet are saved: HTML made from data, opened as a blob, would run with
+the app's origin. The spreadsheet is the compiled records, one row per band
+emitted: the band's name, then its raw values, so numbers stay numbers and
+any report, a list or an invoice, has one.
 """
-from typing import Any, Dict
+import copy
+import datetime
+import decimal
+import io
+import json
+from typing import Any, Dict, Iterator, List
 
 import kitebase.utils
 from kitebase.apptime import today
 from kitebase.db import BaseApp
 from kitebase.endpoints import FileResult, endpoint
 from kitebase.i18n import _, _f
+from kitebase.pages import strip_meta
 
 from reports import registry
 from reports.context import LayeredLoader, PublicResolver, plugin_layers, public_roots
 
 HEADER_LINES = 4
 
+# What reports.run reads itself; every other key is an option.
+RESERVED = ('report', 'ids', 'template', 'title', 'format')
+
 FORMATS = {
     'pdf':  ('pdf', 'application/pdf', 'inline'),
     'html': ('html', 'text/html', 'attachment'),
     'json': ('json', 'application/json', 'attachment'),
+    'xlsx': ('xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+             'attachment'),
 }
 
 
 def _refuse(message: str) -> Dict[str, Any]:
     return {'status': 'error', 'code': 400, 'message': message}
+
+
+def _cell(value: Any) -> Any:
+    """A value openpyxl can write as a typed cell: the rule of the core's
+    export (`kitebase.endpoint_export._cell`), which the two must keep alike."""
+    if isinstance(value, datetime.datetime) and value.tzinfo is not None:
+        return value.replace(tzinfo=None)  # Excel has no timezones
+    if isinstance(value, (str, int, float, bool, decimal.Decimal,
+                          datetime.date, datetime.time)) or value is None:
+        return value
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False, default=str)
+    return str(value)
+
+
+def to_xlsx(r) -> bytes:
+    """The compiled records of `r`, one row per band: its name, then its values."""
+    from openpyxl import Workbook
+
+    book = Workbook()
+    sheet = book.active
+    sheet.title = 'records'
+    for record in r.records():
+        sheet.append([record['band']] + [_cell(v) for v in record.get('values', [])])
+    out = io.BytesIO()
+    book.save(out)
+    return out.getvalue()
 
 
 def header_lines(config: Dict[str, Any]) -> list:
@@ -63,9 +122,7 @@ def run(data: Dict[str, Any]) -> Any:
         return _refuse(_('ids must be a list'))
     if report.input == 'view' and not ids:
         return _refuse(_('No rows to print'))
-    options = data.get('options') or {}
-    if not isinstance(options, dict):
-        return _refuse(_('options must be an object'))
+    options = {k: v for k, v in data.items() if k not in RESERVED}
 
     app = kitebase.utils.get_app()
     loader = LayeredLoader(plugin_layers(app.pm))
@@ -98,8 +155,115 @@ def run(data: Dict[str, Any]) -> Any:
             report.loop(r, params)
             ext, mime, disposition = FORMATS[fmt]
             content = {'pdf': r.to_pdf, 'html': lambda: r.to_html().encode('utf-8'),
-                       'json': lambda: r.to_json().encode('utf-8')}[fmt]()
+                       'json': lambda: r.to_json().encode('utf-8'),
+                       'xlsx': lambda: to_xlsx(r)}[fmt]()
         finally:
             registry.current_session.reset(token)
 
     return FileResult(content, f'{template}_{today():%Y%m%d}.{ext}', mime, disposition)
+
+
+# ── The Print button ──────────────────────────────────────────────────────────
+
+def rows_taken(report: registry.Report, data: Dict[str, Any]) -> list:
+    """The rows a report prints from what the view sent: the ticked ones, or
+    with none ticked what `on_empty` says, the rows on screen or the current one."""
+    if report.input == 'none':
+        return []
+    ticked = data.get('ids') or []
+    if ticked:
+        return list(ticked)
+    if report.on_empty == 'row':
+        return [data['id']] if data.get('id') is not None else []
+    return list(data.get('view_ids') or [])
+
+
+def _fields(node: Any) -> Iterator[Dict[str, Any]]:
+    """Every field of a form layout, at any depth."""
+    if isinstance(node, list):
+        for item in node:
+            yield from _fields(item)
+    elif isinstance(node, dict):
+        if isinstance(node.get('name'), str) and node.get('type') not in ('section', 'row', 'tabs'):
+            yield node
+        for key in ('layout', 'fields', 'children', 'tabs', 'content'):
+            if key in node:
+                yield from _fields(node[key])
+
+
+def print_form(app, report: registry.Report, templates: List[str]) -> Dict[str, Any]:
+    """The print dialog of a report: the shared part, then its options.
+
+    Raises ValueError when the report's options form is missing or uses a
+    reserved name.
+    """
+    view = copy.deepcopy(app.pm.resolve_refs(app.pm.get('views.reports_print_form')))
+    for field in _fields(view['layout']):
+        if field['name'] == 'template':
+            field['choices'] = [{'value': t, 'label': t} for t in templates]
+
+    if report.options:
+        options = app.pm.get(f'views.{report.options}')
+        if options is None:
+            raise ValueError(_f("The options form '{form}' of report '{report}' does not exist",
+                                form=report.options, report=report.name))
+        options = copy.deepcopy(app.pm.resolve_refs(options))
+        for field in _fields(options.get('layout') or []):
+            if field['name'] in RESERVED:
+                raise ValueError(_f("The option '{name}' of report '{report}' uses a reserved name",
+                                    name=field['name'], report=report.name))
+        view['layout'] = list(view['layout']) + list(options.get('layout') or [])
+        if 'presentation' in options:
+            view['presentation'] = options['presentation']
+    return view
+
+
+@endpoint('reports.print')
+def print_menu(data: Dict[str, Any]) -> Dict[str, Any]:
+    table = data.get('table')
+    if data.get('report'):
+        report = registry.get(data['report'])
+        if report is None or report.table != table:
+            return _refuse(_f("Unknown report: '{report}'", report=data['report']))
+    else:
+        catalog = registry.for_table(table) if table else []
+        if not catalog:
+            return {'status': 'success', 'data': {'message': _('Nothing to print here')}}
+        if len(catalog) > 1:
+            return {'status': 'success', 'data': {
+                'action': 'choose',
+                'title': _('Print'),
+                'options': [{'label': _(r.title),
+                             'then': {'action': 'endpoint', 'op': 'reports.print',
+                                      'params': {**data, 'report': r.name}}}
+                            for r in catalog],
+            }}
+        report = catalog[0]
+
+    ids = rows_taken(report, data)
+    if report.input == 'view' and not ids:
+        return _refuse(_('No rows to print'))
+
+    app = kitebase.utils.get_app()
+    templates = variants(report, LayeredLoader(plugin_layers(app.pm)))
+    if not templates:
+        return _refuse(_f("Report '{report}' has no template", report=report.name))
+    try:
+        view = print_form(app, report, templates)
+    except ValueError as e:
+        return _refuse(str(e))
+
+    values = {f['name']: f['default'] for f in _fields(view['layout']) if 'default' in f}
+    values.update({
+        'template': report.short_name if report.short_name in templates else templates[0],
+        'title': _(report.title),
+        'format': 'pdf',
+    })
+    return {'status': 'success', 'data': {
+        'action': 'form',
+        'title': _(report.title),
+        'view': strip_meta(view),
+        'values': values,
+        'then': {'action': 'download', 'op': 'reports.run',
+                 'params': {'report': report.name, 'ids': ids}},
+    }}
