@@ -15,7 +15,7 @@ class PhonebookRenderer(AndRepRenderer):
             self.count += 1
 
 
-@report('demo_ui.phonebook', renderer=PhonebookRenderer)
+@report('demo_ui.phonebook', table='Partner', label='Phone book', renderer=PhonebookRenderer)
 def phonebook(r, params):
     for row in load_records('Partner', params['ids']):
         r.emit('row')

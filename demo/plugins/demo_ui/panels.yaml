@@ -39,6 +39,16 @@ views:
           scope: global
           key: a
           endpoint: archivable
+        # The reports of Partner, offered by the server: a menu when there are
+        # several, the print dialog when there is one. `rows: view` sends the
+        # rows on screen, which a report prints when none is ticked.
+        - id: print
+          icon: printer
+          toolbar: true
+          scope: global
+          key: p
+          endpoint: reports.print
+          rows: view
 
 pages:
 
