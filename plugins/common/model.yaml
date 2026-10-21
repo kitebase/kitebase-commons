@@ -166,6 +166,7 @@ types:
         type: DateTime
         granularity: second
         default: $now
+        deferred: True      # filled at save: a form leaves it to the server
         nullable: False
         query_rank: more
       - name: updated_at
@@ -173,6 +174,7 @@ types:
         granularity: second
         default: $now
         onupdate: $now
+        deferred: True
         nullable: False
         query_rank: more
 
