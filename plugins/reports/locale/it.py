@@ -14,4 +14,11 @@ register_translations('it', {
         "La form delle opzioni '{form}' della stampa '{report}' non esiste",
     "The option '{name}' of report '{report}' uses a reserved name":
         "L'opzione '{name}' della stampa '{report}' usa un nome riservato",
+
+    # The labels of the YAML
+    'Template': 'Tracciato',
+    'Title': 'Titolo',
+    'Output': 'Destinazione',
+    'Preview (PDF)': 'Anteprima (PDF)',
+    'Spreadsheet (Excel)': 'Foglio di calcolo (Excel)',
 })

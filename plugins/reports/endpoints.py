@@ -47,7 +47,7 @@ import kitebase.utils
 from kitebase.apptime import today
 from kitebase.db import BaseApp
 from kitebase.endpoints import FileResult, endpoint
-from kitebase.i18n import _, _f
+from kitebase.i18n import _, _f, translate_labels
 from kitebase.pages import strip_meta
 
 from reports import registry
@@ -281,7 +281,7 @@ def print_menu(data: Dict[str, Any]) -> Dict[str, Any]:
     return {'status': 'success', 'data': {
         'action': 'form',
         'title': _(report.title),
-        'view': strip_meta(view),
+        'view': translate_labels(strip_meta(view)),
         'values': values,
         'then': {'action': 'download', 'op': 'reports.run',
                  'params': {'report': report.name, 'ids': ids}},

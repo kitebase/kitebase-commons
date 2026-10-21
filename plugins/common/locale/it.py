@@ -23,4 +23,19 @@ register_translations('it', {
     'a digit': 'una cifra',
     'a symbol': 'un simbolo',
     'It must not contain the username': 'Non deve contenere il nome utente',
+
+    # The labels of the YAML
+    'Active': 'Attivo',
+    'Address': 'Indirizzo',
+    'Archivable': 'Archiviabile',
+    'Authentication Credentials': 'Credenziali di accesso',
+    'Color': 'Colore',
+    'Configuration': 'Configurazione',
+    'Email': 'Email',
+    'File Path': 'Percorso del file',
+    'Last Login': 'Ultimo accesso',
+    'Password': 'Password',
+    'Timestamp': 'Data e ora',
+    'Unique Identifier': 'Identificativo univoco',
+    'Username': 'Nome utente',
 })

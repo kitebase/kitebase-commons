@@ -1,0 +1,28 @@
+from kitebase.i18n import register_translations
+
+register_translations('it', {
+    'Address': 'Indirizzo',
+    'Administration': 'Amministrazione',
+    'All partners': 'Tutti i soggetti',
+    'Archive': 'Archivia',
+    'Billing addresses': 'Indirizzi di fatturazione',
+    'City': 'Città',
+    'Configuration': 'Configurazione',
+    'Customers': 'Clienti',
+    'Delivery addresses': 'Indirizzi di consegna',
+    'Email': 'Email',
+    'Kind': 'Tipo',
+    'Kitebase demo': 'Demo di Kitebase',
+    'Name': 'Nome',
+    'Partner roles': 'Ruoli dei soggetti',
+    'Partners': 'Soggetti',
+    'Person name': 'Nome della persona',
+    'Person name (placeholder)': 'Nome della persona (segnaposto)',
+    'Phone': 'Telefono',
+    'Roles': 'Ruoli',
+    'Suppliers': 'Fornitori',
+    'Trade name': 'Ragione sociale',
+    'Users': 'Utenti',
+    'Zip': 'CAP',
+    'Phone book': 'Rubrica',
+})
