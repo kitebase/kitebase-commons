@@ -33,7 +33,8 @@ The PDF opens in a tab, from which it is printed. HTML, JSON and the
 spreadsheet are saved: HTML made from data, opened as a blob, would run with
 the app's origin. The spreadsheet is the compiled records, one row per band
 emitted: the band's name, then its raw values, so numbers stay numbers and
-any report, a list or an invoice, has one.
+any report, a list or an invoice, has one. A report with a post-processor for
+`xlsx` (registry.report_post) writes its own instead.
 """
 import copy
 import datetime
@@ -83,15 +84,19 @@ def _cell(value: Any) -> Any:
     return str(value)
 
 
-def to_xlsx(r) -> bytes:
-    """The compiled records of `r`, one row per band: its name, then its values."""
+def to_xlsx(r, post=None) -> bytes:
+    """The compiled records of `r`, one row per band: its name, then its values;
+    or what `post(records, book)` writes in the workbook."""
     from openpyxl import Workbook
 
     book = Workbook()
-    sheet = book.active
-    sheet.title = 'records'
-    for record in r.records():
-        sheet.append([record['band']] + [_cell(v) for v in record.get('values', [])])
+    if post is not None:
+        post(r.records(), book)
+    else:
+        sheet = book.active
+        sheet.title = 'records'
+        for record in r.records():
+            sheet.append([record['band']] + [_cell(v) for v in record.get('values', [])])
     out = io.BytesIO()
     book.save(out)
     return out.getvalue()
@@ -156,7 +161,8 @@ def run(data: Dict[str, Any]) -> Any:
             ext, mime, disposition = FORMATS[fmt]
             content = {'pdf': r.to_pdf, 'html': lambda: r.to_html().encode('utf-8'),
                        'json': lambda: r.to_json().encode('utf-8'),
-                       'xlsx': lambda: to_xlsx(r)}[fmt]()
+                       'xlsx': lambda: to_xlsx(r, registry.get_post(
+                           report.name, 'xlsx', template))}[fmt]()
         finally:
             registry.current_session.reset(token)
 
@@ -191,7 +197,18 @@ def _fields(node: Any) -> Iterator[Dict[str, Any]]:
                 yield from _fields(node[key])
 
 
-def print_form(app, report: registry.Report, templates: List[str]) -> Dict[str, Any]:
+def template_label(loader: LayeredLoader, name: str) -> str:
+    """How the dialog names a template: its title and its file, which tells two
+    copies apart when an installation has not renamed the title."""
+    try:
+        title = loader.load(name).get('name')
+    except (OSError, ValueError):
+        title = None
+    return f'{title} ({name})' if title and title != name else name
+
+
+def print_form(app, report: registry.Report, templates: List[str],
+               loader: LayeredLoader) -> Dict[str, Any]:
     """The print dialog of a report: the shared part, then its options.
 
     Raises ValueError when the report's options form is missing or uses a
@@ -200,7 +217,8 @@ def print_form(app, report: registry.Report, templates: List[str]) -> Dict[str, 
     view = copy.deepcopy(app.pm.resolve_refs(app.pm.get('views.reports_print_form')))
     for field in _fields(view['layout']):
         if field['name'] == 'template':
-            field['choices'] = [{'value': t, 'label': t} for t in templates]
+            field['choices'] = [{'value': t, 'label': template_label(loader, t)}
+                                for t in templates]
 
     if report.options:
         options = app.pm.get(f'views.{report.options}')
@@ -245,11 +263,12 @@ def print_menu(data: Dict[str, Any]) -> Dict[str, Any]:
         return _refuse(_('No rows to print'))
 
     app = kitebase.utils.get_app()
-    templates = variants(report, LayeredLoader(plugin_layers(app.pm)))
+    loader = LayeredLoader(plugin_layers(app.pm))
+    templates = variants(report, loader)
     if not templates:
         return _refuse(_f("Report '{report}' has no template", report=report.name))
     try:
-        view = print_form(app, report, templates)
+        view = print_form(app, report, templates, loader)
     except ValueError as e:
         return _refuse(str(e))
 

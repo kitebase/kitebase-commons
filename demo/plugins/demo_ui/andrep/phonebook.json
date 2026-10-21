@@ -217,7 +217,7 @@
     },
     {
       "id": "r2",
-      "name": "row",
+      "name": "band",
       "cells": [
         {
           "id": "c5",

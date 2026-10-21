@@ -117,7 +117,19 @@ The demo takes AndRep from the workspace's checkout, editable, beside kitebase.
   loaded, data-only namespace, resources confined and embedded, PDF backends
   limited to `data:` URLs.
 - **Print button, catalog and dialog**: done. The spreadsheet is one row per
-  band emitted: the band's name, then its raw values.
+  band emitted: the band's name, then its raw values; a report may write its
+  own with a post-processor, found by the report (and the template, when one is
+  registered for it), never named by a template:
+
+  ```python
+  @report_post('myplugin.products', format='xlsx')   # template='products_a' for one
+  def products_sheet(records, book):
+      sheet = book.active
+      sheet.append(['Code', 'Name'])
+      for record in records:
+          if record['band'] == 'band':
+              sheet.append(record['values'])
+  ```
 - **Loader, resolver, registry, `reports.run`**: done. The public roots are,
   for now, the `andrep/` folders of the plugins, each named after its plugin
   (`myplugin:logo.png`).

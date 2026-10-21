@@ -74,37 +74,37 @@ class Counting(AndRepRenderer):
         options='customer_options')
 def customers(r, params):
     for row in load_records('Customer', params['ids'], load=['orders']):
-        r.emit('row')
+        r.emit('band')
 
 
 @report('shop.cards', table='Customer', on_empty='row', options='card_options')
 def cards(r, params):
     for row in load_records('Customer', params['ids']):
-        r.emit('row')
+        r.emit('band')
 
 
 @report('shop.clash', table='Order', options='clash_options')
 def clash(r, params):
-    r.emit('row')
+    r.emit('band')
 
 
 @report('shop.users')
 def users(r, params):
     for row in load_records('User', params['ids']):
-        r.emit('row')
+        r.emit('band')
 
 
 @report('shop.side_customer', input='none', params={'side': 'customer'})
 @report('shop.side_supplier', input='none', params={'side': 'supplier'})
 def side(r, params):
     side = params['side']
-    r.emit('row')
+    r.emit('band')
 
 
 @report('shop.resources', input='none')
 def resources(r, params):
     ref = params['options']['ref']
-    r.emit('row')
+    r.emit('band')
 '''
 
 
@@ -139,29 +139,29 @@ def app(tmp_path_factory):
 
     andrep = shop / 'andrep'
     write_json(andrep / 'customers.json', make_template(
-        {'row': ['[row.full_name]', '[row.last_name]', "[', '.join(o.number for o in row.orders)]"],
+        {'band': ['[row.full_name]', '[row.last_name]', "[', '.join(o.number for o in row.orders)]"],
          'page_footer': ['[_r.count]']}, name='Customers'))
-    write_json(andrep / 'customers_wide.json', make_template({'row': ['[row.id]']}))
-    write_json(andrep / 'shop.customers_short.json', make_template({'row': ['[row.id]']}))
-    write_json(andrep / 'cards.json', make_template({'row': ['[row.id]']}))
-    write_json(andrep / 'clash.json', make_template({'row': ['x']}))
-    write_json(andrep / 'users.json', make_template({'row': ['[row.username]', '[row.password]']}))
-    write_json(andrep / 'side_customer.json', make_template({'row': ['[side]']}))
-    write_json(andrep / 'side_supplier.json', make_template({'row': ['[side]']}))
-    write_json(andrep / 'resources.json', make_template({'row': ["[ref | load]"]}))
+    write_json(andrep / 'customers_wide.json', make_template({'band': ['[row.id]']}))
+    write_json(andrep / 'shop.customers_short.json', make_template({'band': ['[row.id]']}))
+    write_json(andrep / 'cards.json', make_template({'band': ['[row.id]']}))
+    write_json(andrep / 'clash.json', make_template({'band': ['x']}))
+    write_json(andrep / 'users.json', make_template({'band': ['[row.username]', '[row.password]']}))
+    write_json(andrep / 'side_customer.json', make_template({'band': ['[side]']}))
+    write_json(andrep / 'side_supplier.json', make_template({'band': ['[side]']}))
+    write_json(andrep / 'resources.json', make_template({'band': ["[ref | load]"]}))
     (andrep / 'logo.txt').write_text('a public asset')
-    write_json(andrep / 'other.json', make_template({'row': ['other']}))
+    write_json(andrep / 'other.json', make_template({'band': ['other']}))
     std = [{'rule': 'InsBefore', 'target': 'standard_header'}]
     write_json(andrep / 'customers_headed.json', make_template(
-        {'row': ['[row.id]']}, composition=std))
+        {'band': ['[row.id]']}, composition=std))
     landscape = [{'rule': 'InsBefore', 'target': 'standard_header_landscape'}]
     write_json(andrep / 'customers_landscape.json', make_template(
-        {'row': ['[row.id]']}, composition=landscape))
+        {'band': ['[row.id]']}, composition=landscape))
     (root / 'secret.txt').write_text('outside every root')
 
     installation = root / '_andrep'
-    write_json(installation / 'customers_wide.json', make_template({'row': ['[row.last_name]']}))
-    write_json(installation / 'customers_store.json', make_template({'row': ['[row.first_name]']}))
+    write_json(installation / 'customers_wide.json', make_template({'band': ['[row.last_name]']}))
+    write_json(installation / 'customers_store.json', make_template({'band': ['[row.first_name]']}))
     write_json(installation / 'standard_header_landscape.json',
                make_template({'page_header': ['installed header [_r.name[0]]']}))
 
@@ -216,7 +216,7 @@ def press_print(app, **data):
 def rows(result):
     """The values of the `row` bands of a JSON result."""
     assert isinstance(result, FileResult), result
-    return [rec['values'] for rec in json.loads(result.content) if rec['band'] == 'row']
+    return [rec['values'] for rec in json.loads(result.content) if rec['band'] == 'band']
 
 
 # ── Registry ──────────────────────────────────────────────────────────────────
@@ -419,7 +419,7 @@ def test_options_arrive_flat_beside_what_run_reads(app):
 
     def loop(r, params):
         seen.update(params)
-        r.emit('row')
+        r.emit('band')
 
     registry.register('shop.side_customer', loop, domain='shop', input='none',
                       params={'side': 'customer'}, replace=True)
@@ -453,6 +453,9 @@ def test_the_picked_report_answers_its_dialog(app):
     template = view['layout'][0]['fields'][0]
     assert {c['value'] for c in template['choices']} >= {'customers', 'customers_wide',
                                                         'customers_store', 'shop.customers_short'}
+    labels = {c['value']: c['label'] for c in template['choices']}
+    assert labels['customers'] == 'Customers (customers)'    # the template's title
+    assert labels['customers_wide'] == 'customers_wide'      # no title: the file
     assert body['values'] == {'template': 'customers', 'title': 'Customers', 'format': 'pdf',
                               'with_orders': True}
     assert body['then'] == {'action': 'download', 'op': 'reports.run',
@@ -499,5 +502,47 @@ def test_the_spreadsheet_is_one_row_per_band_with_typed_values(app):
                  ids=[2, 1], format='xlsx')
     assert result.disposition == 'attachment'
     sheet = load_workbook(io.BytesIO(result.content)).active
-    rows = [list(r) for r in sheet.iter_rows(values_only=True) if r[0] == 'row']
-    assert rows == [['row', 2], ['row', 1]]
+    rows = [list(r) for r in sheet.iter_rows(values_only=True) if r[0] == 'band']
+    assert rows == [['band', 2], ['band', 1]]
+
+
+def sheet_rows(result) -> list:
+    from openpyxl import load_workbook
+    return [list(r) for r in load_workbook(io.BytesIO(result.content)).active.iter_rows(values_only=True)]
+
+
+def test_a_post_processor_writes_the_spreadsheet(app):
+    from reports import registry
+
+    def table(records, book):
+        sheet = book.active
+        sheet.append(['Id'])
+        for rec in records:
+            if rec['band'] == 'band':
+                sheet.append(rec['values'])
+
+    def only_one(records, book):
+        book.active.append(['just this template'])
+
+    registry.register_post('shop.customers', table)
+    registry.register_post('shop.customers', only_one, template='customers_wide')
+    try:
+        short = run(app, report='shop.customers', template='shop.customers_short',
+                    ids=[2, 1], format='xlsx')
+        wide = run(app, report='shop.customers', template='customers_wide', ids=[1],
+                   format='xlsx')
+        assert sheet_rows(short) == [['Id'], [2], [1]]
+        assert sheet_rows(wide) == [['just this template']]
+        with pytest.raises(ValueError, match='replace=True'):
+            registry.register_post('shop.customers', only_one)
+    finally:
+        registry._POSTS.clear()
+    raw = run(app, report='shop.customers', template='shop.customers_short', ids=[1],
+              format='xlsx')
+    assert [r for r in sheet_rows(raw) if r[0] == 'band'] == [['band', 1]]
+
+
+def test_a_post_processor_is_for_a_known_format(app):
+    from reports import registry
+    with pytest.raises(ValueError, match='format must be one of'):
+        registry.register_post('shop.customers', lambda records, book: None, format='pdf')

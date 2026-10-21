@@ -15,17 +15,27 @@ unless the second one says `replace=True`, which is how a derived plugin swaps
 a loop. One loop may be registered under several names, each with fixed
 `params` merged into the ones it receives.
 
+A report may have a post-processor for a format: the code that writes the
+spreadsheet instead of the default one row per band. It is found by the
+report, and by the template when one is registered for it, never named by a
+template: a template can be edited in production, and one that chose which
+code runs would turn editing templates into running code.
+
+    @report_post('sales.invoice', format='xlsx')
+    def invoice_sheet(records, book): ...
+
 `table` puts the report in the catalog of that table: what the Print button of
 its views offers, under `label`. A report without a table is reached only by
 name, as the last step of a chain.
 """
 import contextvars
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterable, Iterator, Optional, Sequence, Union
+from typing import Any, Callable, Dict, Iterable, Iterator, Optional, Sequence, Tuple, Union
 
 from andrep import AndRepRenderer
 
 INPUTS = ('view', 'none')
+POST_FORMATS = ('xlsx',)
 ON_EMPTY = ('all', 'row')
 
 # Ids per query: small enough for any database's limit on bound parameters.
@@ -118,6 +128,44 @@ def all_reports() -> Dict[str, Report]:
 def for_table(table: str) -> list:
     """The catalog of `table`: its reports, in the order they were registered."""
     return [r for r in _REPORTS.values() if r.table == table]
+
+
+# ── Post-processors ───────────────────────────────────────────────────────────
+
+# (report, format, template or None for every template of the report)
+_POSTS: Dict[Tuple[str, str, Optional[str]], Callable] = {}
+
+
+def register_post(report: str, post: Callable, *, format: str = 'xlsx',
+                  template: Optional[str] = None, replace: bool = False) -> None:
+    """Bind `post` to a report's output in `format`, for one template or all.
+
+    Any plugin may register one, a derived plugin of the installation included:
+    a post-processor is code that arrives with a deploy, like a loop.
+    """
+    if format not in POST_FORMATS:
+        raise ValueError(f"post-processor of {report!r}: format must be one of "
+                         f"{POST_FORMATS}, not {format!r}")
+    key = (report, format, template)
+    existing = _POSTS.get(key)
+    if existing is not None and not replace and not _same_loop(existing, post):
+        raise ValueError(f"report {report!r} already has a {format} post-processor"
+                         f"{f' for {template!r}' if template else ''}: "
+                         f"pass replace=True to replace it")
+    _POSTS[key] = post
+
+
+def report_post(report: str, **declarations) -> Callable[[Callable], Callable]:
+    """Register the decorated function as a post-processor; see `register_post`."""
+    def decorator(post: Callable) -> Callable:
+        register_post(report, post, **declarations)
+        return post
+    return decorator
+
+
+def get_post(report: str, format: str, template: Optional[str]) -> Optional[Callable]:
+    """The post-processor of a report's output: the template's own, else the report's."""
+    return _POSTS.get((report, format, template)) or _POSTS.get((report, format, None))
 
 
 # ── Records ───────────────────────────────────────────────────────────────────
