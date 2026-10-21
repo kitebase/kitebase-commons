@@ -2,9 +2,9 @@
 
 Printing for Kitebase applications through [AndRep](https://github.com/claudiodriussi/andrep).
 
-**First version.** A registered report runs through `reports.run` and comes
-back as PDF, HTML or JSON. The print button in the Navigator, with its dialog,
-is the next step.
+**First version.** A view's Print button offers the reports of its table, and
+a dialog chooses template, title and output; the report comes back as PDF,
+HTML, JSON or a spreadsheet.
 
 ## What it is
 
@@ -17,7 +17,7 @@ adapter**, written once per platform: it is this plugin.
 | Record view | Kitebase records passed to templates as they are, exposing only their declared fields | `SQLAlchemyView` of AndRep, derived here: virtual columns as `extra_fields`, and what a relation may reach |
 | Resolver | `root:path` references printed as images | the public roots first (plugin assets); with media columns, also the references the template read from an `Image`/`File` column. Network always off |
 | Loader | the templates of a report: every file whose name starts with the report's name | the `andrep/` folder of each plugin, in dependency order, plus the installation layer `_andrep/` on top |
-| Command | `reports.run`, through the download route; next, a print button in the Navigator: one report runs at once, more open a menu; then a dialog for template, title and destination | endpoints under `reports.*` |
+| Command | `reports.print` answers the Print button: a menu of the table's reports, or the dialog of the one there is; `reports.run`, through the download route, prints | endpoints under `reports.*` |
 
 A plugin that ships reports declares `depends_on: [reports]`, registers its
 loops with `@report('domain.name')` and keeps its templates flat in its
@@ -26,10 +26,31 @@ loops with `@report('domain.name')` and keeps its templates flat in its
 ```python
 from reports.registry import load_records, report
 
-@report('myplugin.products', renderer=ProductsRenderer)
+@report('myplugin.products', table='Product', label='Product list',
+        options='products_options', renderer=ProductsRenderer)
 def products(r, params):
     for row in load_records('Product', params['ids'], load=['category']):
         r.emit('row')
+```
+
+`table` puts the report in the catalog of that table, under `label`. `options`
+names a form view (`views.products_options`) whose fields the dialog adds after
+template, title and output; their values reach the loop in `params['options']`.
+`template`, `title`, `format`, `report` and `ids` are reserved names. The dialog
+is a dialog because `views.reports_print_form` says `presentation: dialog`; an
+options view that needs a lookup says `presentation: page`, and wins.
+
+A view offers the reports with a navigator command:
+
+```yaml
+navigator:
+  commands:
+    - id: print
+      icon: printer
+      toolbar: true
+      scope: global
+      endpoint: reports.print
+      rows: view          # the rows on screen, printed when none is ticked
 ```
 
 The domain is the plugin's name: `myplugin` registers `myplugin.*` only, and a
@@ -95,11 +116,13 @@ The demo takes AndRep from the workspace's checkout, editable, beside kitebase.
 - **Template security**: in AndRep. Expressions checked when a template is
   loaded, data-only namespace, resources confined and embedded, PDF backends
   limited to `data:` URLs.
+- **Print button, catalog and dialog**: done. The spreadsheet is one row per
+  band emitted: the band's name, then its raw values.
 - **Loader, resolver, registry, `reports.run`**: done. The public roots are,
   for now, the `andrep/` folders of the plugins, each named after its plugin
   (`myplugin:logo.png`).
-- **To do**: the print button and its dialog, the catalog of a table's
-  reports, the ids checked again against the view's query, references read from
+- **To do**: the last template used preselected, the ids checked again
+  against the view's query, references read from
   `Image`/`File` columns, rendering in a worker with a timeout.
 
 ## Testing
@@ -129,7 +152,8 @@ uv run pytest -q ../plugins/reports/tests
   registry and domains, records in the order asked, the Kitebase view (virtual
   and secret columns), the variants by prefix and the installation layer, the
   resolver (a public root readable; relative paths, other roots and URLs
-  refused), `reports.run` and its refusals.
+  refused), `reports.run` and its refusals, `reports.print` (the menu, the
+  dialog, the rows each report takes) and the spreadsheet.
 
 Still to cover, with the pieces that bring them: a relation does not reach rows
 the user's query would not have returned; a reference read from an `Image`
