@@ -3,4 +3,8 @@ version: 0.0.1
 description: Menu and views of the demo application
 license: MIT
 author: "Claudio Driussi"
-depends_on: [common, users, partners, reports]
+depends_on: [common, users, partners]
+# The phone book prints only where the app loads reports; without it the Print
+# command of the partners is not there.
+optional:
+  reports: [phonebook]
