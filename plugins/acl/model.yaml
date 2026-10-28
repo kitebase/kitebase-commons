@@ -1,0 +1,16 @@
+# The roles a user holds, added to `User` by deep_merge.
+#
+# A flat list of role codes: the tree lives in the definitions (`implies`), so
+# assigning a supervisor brings what the supervisor implies with no second
+# entry. Codes, not foreign keys: roles are declared in YAML, not stored as rows.
+
+tables:
+
+  User:
+
+    columns:
+
+      - name: roles
+        label: "Roles"
+        type: Json
+        default: []

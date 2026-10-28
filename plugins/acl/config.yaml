@@ -1,0 +1,13 @@
+# Access control by roles.
+#
+# Including this plugin is what turns access control on: nothing else to call.
+# Every plugin may declare its roles in an `acl.yaml` of its own; the user gets
+# a `roles` column, and the codes in it travel in the token. Without this
+# plugin the roles declared anywhere stay inert and everything is open.
+name: acl
+version: 0.0.1
+description: Access control by roles declared in the plugins
+license: MIT
+author: "Claudio Driussi"
+url: https://claudiodriussi.it
+depends_on: [users]
