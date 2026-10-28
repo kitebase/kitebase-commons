@@ -13,6 +13,7 @@ can edit users (pages.yaml).
 import kitebase.utils
 from kitebase.db import BaseApp
 from kitebase.endpoint_db import write_values
+from kitebase import access
 from kitebase.endpoints import endpoint
 from kitebase.i18n import _
 from kitebase.transforms import ValidationError, verify_password
@@ -21,12 +22,12 @@ from kitebase.transforms import ValidationError, verify_password
 EMPTY = {'current': '', 'new': '', 'confirm': ''}
 
 
-@endpoint('password_form')
+@endpoint('password_form', access=access.AUTHENTICATED)
 def password_form(data):
     return {'status': 'success', 'code': 200, 'data': dict(EMPTY)}
 
 
-@endpoint('change_password')
+@endpoint('change_password', access=access.AUTHENTICATED)
 def change_password(data):
     """Set the caller's password. Field errors come back per field."""
     user_id = (BaseApp.get_context() or {}).get('id')

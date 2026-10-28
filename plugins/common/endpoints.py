@@ -13,6 +13,7 @@ record, and none without a row — which is what a server-driven popup means
 without any machinery on the client's side.
 """
 import kitebase.utils
+from kitebase import access
 from kitebase.endpoints import endpoint
 from kitebase.i18n import _, _f
 from kitebase.utils import search_info, table_definition
@@ -39,11 +40,12 @@ def _label(record, model):
     return str(getattr(record, field, ''))
 
 
-@endpoint('archivable')
+@endpoint('archivable', access=access.PER_TABLE)
 def archivable(data):
     model, error = _archivable_model(data)
     if error:
         return error
+    access.check_table(data['table'], 'read')
     params = data.get('query_params') or {}
     archived = params.get('archived')
     table = data['table']
@@ -60,7 +62,9 @@ def archivable(data):
 
     ids = data.get('ids') or []
     app = kitebase.utils.get_app()
-    if ids:
+    # Archiving is a change like any other: the verbs only for who may make it.
+    may_change = access.can(f'{table}.update')
+    if may_change and ids:
         n = len(ids)
         options.append({
             'label': _f('Archive {n} selected', n=n),
@@ -71,7 +75,7 @@ def archivable(data):
             'label': _f('Restore {n} selected', n=n),
             'then': {'action': 'endpoint', 'op': 'unarchive', 'params': {'table': table, 'ids': ids}},
         })
-    elif data.get('id') is not None:
+    elif may_change and data.get('id') is not None:
         with app.get_session() as session:
             record = session.get(model, data['id'])
             if record is not None:
@@ -90,6 +94,7 @@ def _flip(data, archive: bool):
     model, error = _archivable_model(data)
     if error:
         return error
+    access.check_table(data['table'], 'update')
     ids = data.get('ids') or ([data['id']] if data.get('id') is not None else [])
     if not ids:
         return {'status': 'error', 'code': 400, 'message': _('No record given')}
@@ -116,13 +121,13 @@ def _flip(data, archive: bool):
     return {'status': 'success', 'data': {'message': message, 'touched': touched}}
 
 
-@endpoint('archive')
+@endpoint('archive', access=access.PER_TABLE)
 def archive(data):
     """Hide the given records from the default views; nothing is deleted."""
     return _flip(data, True)
 
 
-@endpoint('unarchive')
+@endpoint('unarchive', access=access.PER_TABLE)
 def unarchive(data):
     """Bring archived records back into the default views."""
     return _flip(data, False)

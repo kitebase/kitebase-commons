@@ -46,6 +46,7 @@ from typing import Any, Dict, Iterator, List
 import kitebase.utils
 from kitebase.apptime import today
 from kitebase.db import BaseApp
+from kitebase import access
 from kitebase.endpoints import FileResult, endpoint
 from kitebase.i18n import _, _f, translate_labels
 from kitebase.pages import strip_meta
@@ -114,7 +115,7 @@ def variants(report: registry.Report, loader: LayeredLoader):
     return loader.variants([report.short_name, report.name])
 
 
-@endpoint('reports.run')
+@endpoint('reports.run', access='reports.run')
 def run(data: Dict[str, Any]) -> Any:
     report = registry.get(data.get('report') or '')
     if report is None:
@@ -236,7 +237,7 @@ def print_form(app, report: registry.Report, templates: List[str],
     return view
 
 
-@endpoint('reports.print')
+@endpoint('reports.print', access='reports.run')
 def print_menu(data: Dict[str, Any]) -> Dict[str, Any]:
     table = data.get('table')
     if data.get('report'):
