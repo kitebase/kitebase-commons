@@ -25,7 +25,13 @@ it grants and does not deny. A user holds a permission when one of the roles
 says yes, so a denial in one role does not reach another.
 
 A user holds role codes in the `roles` column; the token carries them, and the
-guard resolves them into permissions once per set of roles. `is_admin` is root:
+guard resolves them into permissions once per set of roles. Next to them,
+`acl_exceptions` holds the user's own: `+Publisher.create` grants, `-Book.read`
+denies, and the denial wins over everything but root:
+
+    effective = (from the roles + granted) - denied
+
+`is_admin` is root:
 it passes every check. A permission no role grants is refused, so with this
 plugin on a table nobody was given stays closed, and so does an endpoint that
 declares no access unless the app's config assigns it one:
@@ -36,13 +42,14 @@ declares no access unless the app's config assigns it one:
 """
 import logging
 import re
-from typing import Any, Dict, FrozenSet, Iterable, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Optional, Set, Tuple
 
 from kitebase import access
 from kitebase.server_utils import add_context_field
 
 ADMIN_FIELD = 'is_admin'
 ROLES_FIELD = 'roles'
+EXCEPTIONS_FIELD = 'acl_exceptions'
 
 _log = logging.getLogger(__name__)
 
@@ -136,12 +143,22 @@ class RoleGuard(access.Guard):
             self._cache[key] = frozenset().union(*(self.roles.get(c, frozenset()) for c in key))
         return self._cache[key]
 
+    def holds(self, permission: str, roles: Iterable[str],
+              exceptions: Iterable[str] = ()) -> bool:
+        """Whether a user with these roles and exceptions holds `permission`."""
+        exceptions = list(exceptions or ())
+        if any(e.startswith('-') and _covers(e[1:], permission) for e in exceptions):
+            return False
+        if any(e.startswith('+') and _covers(e[1:], permission) for e in exceptions):
+            return True
+        return any(granted(permission, self.roles.get(code, ())) for code in roles or ())
+
     def allows(self, permission: str, context: Any) -> bool:
         context = context or {}
         if context.get(ADMIN_FIELD):
             return True
-        return any(granted(permission, self.roles.get(code, ()))
-                   for code in context.get(ROLES_FIELD) or [])
+        return self.holds(permission, context.get(ROLES_FIELD) or [],
+                          context.get(EXCEPTIONS_FIELD) or [])
 
     def allows_undeclared(self, endpoint: str, context: Any) -> bool:
         if (context or {}).get(ADMIN_FIELD):
@@ -189,34 +206,50 @@ class RoleGuard(access.Guard):
         """A role that opens a page whose query reads a table it cannot read:
         the page opens and its data answers 403, found here instead of on screen."""
         from kitebase.diagnostics import make_issue
-        from kitebase.pages import load_page, page_permissions
 
         issues = []
-        for page_id, raw in _items(app.pm.data.get('pages') or {}):
-            needs = page_permissions(app, page_id) or []
-            try:
-                refs = _page_references(app, load_page(app, page_id))
-            except ValueError:
-                continue    # a broken page is reported by the core's checks
-            for code, permissions in self.roles.items():
-                if not all(granted(n, permissions) for n in needs):
-                    continue
-                for table, column in sorted(refs, key=str):
-                    if granted(f'{table}.read', permissions):
-                        continue
-                    if granted(f'{table}.label', permissions) and (
-                            column is None or column in access.label_columns(table, app)):
-                        continue
-                    what = f'{table}.{column}' if column else f'the label of {table}'
-                    # with the label already granted only read is left to give
-                    grant = (f'{table}.read' if granted(f'{table}.label', permissions)
-                             else f'{table}.read or {table}.label')
-                    issues.append(make_issue(
-                        'warning', 'acl-page-unreadable', f'pages.{page_id}',
-                        f"role '{code}' opens it but cannot read {what}: its "
-                        f"query answers 403; grant {grant}, or adapt the page",
-                        (raw or {}).get('$plugin') if isinstance(raw, dict) else None))
+        for code, permissions in self.roles.items():
+            for problem in unreadable_pages(app, lambda p, ps=permissions: granted(p, ps)):
+                issues.append(make_issue(
+                    'warning', 'acl-page-unreadable', f"pages.{problem['page']}",
+                    f"role '{code}' opens it but cannot read {problem['what']}: its "
+                    f"query answers 403; grant {problem['grant']}, or adapt the page",
+                    problem['plugin']))
         return issues
+
+
+def unreadable_pages(app: Any, holds: Callable[[str], bool]) -> List[Dict[str, Any]]:
+    """
+    The pages whoever `holds` the given permissions opens, but whose query
+    reads a table they cannot: each with what it reads and what would cover it.
+    Asked for every role by `check`, and for one user by the user form.
+    """
+    from kitebase.pages import load_page, page_permissions
+
+    problems = []
+    for page_id, raw in _items(app.pm.data.get('pages') or {}):
+        if not all(holds(n) for n in page_permissions(app, page_id) or []):
+            continue
+        try:
+            refs = _page_references(app, load_page(app, page_id))
+        except ValueError:
+            continue    # a broken page is reported by the core's checks
+        for table, column in sorted(refs, key=str):
+            if holds(f'{table}.read'):
+                continue
+            if holds(f'{table}.label') and (
+                    column is None or column in access.label_columns(table, app)):
+                continue
+            problems.append({
+                'page': page_id,
+                'title': (raw or {}).get('title') if isinstance(raw, dict) else None,
+                'what': f'{table}.{column}' if column else f'the label of {table}',
+                # with the label already held only read is left to give
+                'grant': (f'{table}.read' if holds(f'{table}.label')
+                          else f'{table}.read or {table}.label'),
+                'plugin': (raw or {}).get('$plugin') if isinstance(raw, dict) else None,
+            })
+    return problems
 
 
 _REFERENCE = re.compile(r'^([A-Z]\w*)\.(\w+)(?:\s+as\s+\w+)?$', re.IGNORECASE)
@@ -283,3 +316,4 @@ GUARD = RoleGuard()
 access.set_guard(GUARD)
 add_context_field(ROLES_FIELD)
 add_context_field(ADMIN_FIELD)
+add_context_field(EXCEPTIONS_FIELD)

@@ -15,20 +15,29 @@
     'No table: these roles give nothing on the data.':
       'Nessuna tabella: questi ruoli non danno nulla sui dati.',
     'The access could not be computed': "Non è stato possibile calcolare l'accesso",
+    'granted to this user': 'concesso a questo utente',
+    'denied to this user': 'negato a questo utente',
+    'click: inherit, grant, deny': 'clic: eredita, concedi, nega',
+    'Pages this user opens but cannot read:': 'Pagine che questo utente apre ma non può leggere:',
+    'reads': 'legge',
+    'it needs': 'serve',
   });
 </script>
 
 <script lang="ts">
   /**
-   * What a user may do, table by table: the roles of the form's draft resolved
-   * into permissions by the server (acl_effective), so ticking a role shows
-   * what it brings before anything is saved.
-   * Registry ID: acl.access, used as a form widget (`widget: acl.access`).
+   * What a user may do, table by table: the roles and exceptions of the
+   * form's draft resolved into permissions by the server (acl_effective), so a
+   * ticked role or a forced cell shows what it gives before anything is saved.
+   * Registry ID: acl.access, the widget of the user's exceptions
+   * (`widget: acl.access` on `acl_exceptions`); the roles are read from the
+   * draft, from the field named by `roles_field` (default `roles`).
    *
    * Each cell is given, taken away inside a role (`-T.label`), or neither; the
-   * tooltip names the roles. Below the tables, the other permissions: those of
-   * pages, menus, endpoints and reports. Read only: it shows the roles, it
-   * does not change them.
+   * tooltip names the roles. A click cycles the user's own exception on it:
+   * inherit, grant (+), deny (-). Below, the other permissions (pages, menus,
+   * endpoints, reports), and the pages these permissions open but cannot read:
+   * at the end, so that growing they do not move the cells under the mouse.
    */
   import { _ } from '$kitebase/i18n';
   import { api } from '$kitebase/api/client';
@@ -37,6 +46,14 @@
     ok: boolean;
     by: string[];
     denied_by: string[];
+    forced: '+' | '-' | null;
+  }
+
+  interface Problem {
+    page: string;
+    title: string | null;
+    what: string;
+    grant: string;
   }
 
   interface TableRow {
@@ -54,6 +71,7 @@
   interface Effective {
     admin: boolean;
     unknown: string[];
+    problems: Problem[];
     actions: string[];
     tables: TableRow[];
     permissions: PermissionRow[];
@@ -61,20 +79,27 @@
 
   interface Props {
     value: unknown;
+    onchange?: (v: string[]) => void;
+    readonly?: boolean;
     record?: Record<string, unknown>;
+    field?: Record<string, unknown>;
     [key: string]: unknown;
   }
 
-  let { value, record = {} }: Props = $props();
+  let { value, onchange, readonly = false, record = {}, field = {} }: Props = $props();
 
   let data = $state<Effective | null>(null);
   let error = $state<string | null>(null);
   let onlyGiven = $state(true);
 
-  const roles = $derived(Array.isArray(value) ? (value as string[]) : []);
+  const codes = (v: unknown) =>
+    Array.isArray(v) ? (v as unknown[]).filter((c): c is string => typeof c === 'string') : [];
+
+  const exceptions = $derived(codes(value));
+  const roles = $derived(codes(record[(field.roles_field as string) ?? 'roles']));
   const isAdmin = $derived(Boolean(record.is_admin));
   // One request per distinct question, and the last one asked wins.
-  const question = $derived(JSON.stringify({ roles, is_admin: isAdmin }));
+  const question = $derived(JSON.stringify({ roles, exceptions, is_admin: isAdmin }));
 
   let asked = 0;
   $effect(() => {
@@ -97,7 +122,8 @@
     return () => clearTimeout(timer);
   });
 
-  const given = (row: TableRow) => Object.values(row.actions).some((a) => a.ok || a.denied_by.length);
+  const shown = (a: Answer) => a.ok || a.denied_by.length > 0 || a.forced !== null;
+  const given = (row: TableRow) => Object.values(row.actions).some(shown);
 
   const groups = $derived.by(() => {
     const out: Array<[string, TableRow[]]> = [];
@@ -111,18 +137,36 @@
   });
 
   const permissions = $derived(
-    (data?.permissions ?? []).filter((p) => !onlyGiven || p.ok || p.denied_by.length),
+    (data?.permissions ?? []).filter((p) => !onlyGiven || shown(p)),
   );
 
   function tip(a: Answer): string {
     const parts = [];
     if (a.by.length) parts.push(`${_('given by')} ${a.by.join(', ')}`);
     if (a.denied_by.length) parts.push(`${_('taken away in')} ${a.denied_by.join(', ')}`);
+    if (a.forced === '+') parts.push(_('granted to this user'));
+    if (a.forced === '-') parts.push(_('denied to this user'));
+    if (!readonly && !data?.admin) parts.push(_('click: inherit, grant, deny'));
     return parts.join('; ');
   }
 
+  /** This user's own exception on exactly this permission: what a click cycles. */
+  function own(code: string): '+' | '-' | null {
+    if (exceptions.includes(`-${code}`)) return '-';
+    if (exceptions.includes(`+${code}`)) return '+';
+    return null;
+  }
+
+  function cycle(code: string) {
+    if (readonly || data?.admin || !onchange) return;
+    const current = own(code);
+    const next = current === null ? '+' : current === '+' ? '-' : null;
+    const rest = exceptions.filter((e) => e !== `+${code}` && e !== `-${code}`);
+    onchange(next ? [...rest, `${next}${code}`] : rest);
+  }
+
   function markOf(a: Answer): string {
-    return a.ok ? 'given' : a.denied_by.length ? 'denied' : 'none';
+    return a.ok ? 'given' : a.forced === '-' || a.denied_by.length ? 'denied' : 'none';
   }
 </script>
 
@@ -160,7 +204,12 @@
                 <td>{row.label}</td>
                 {#each data.actions as action (action)}
                   {@const a = row.actions[action]}
-                  <td class="cell" title={tip(a)}><span class="mark {markOf(a)}"></span></td>
+                  {@const code = `${row.name}.${action}`}
+                  <td class="cell" title={tip(a)}>
+                    <button type="button" class="mark {markOf(a)}" class:forced={a.forced}
+                      disabled={readonly || data.admin} onclick={() => cycle(code)}
+                      aria-label="{row.label} {action}">{own(code) ?? ''}</button>
+                  </td>
                 {/each}
               </tr>
             {/each}
@@ -178,11 +227,29 @@
           {#each permissions as p (p.code)}
             <tr>
               <td>{p.label}{#if p.label !== p.code} <code>{p.code}</code>{/if}</td>
-              <td class="cell" title={tip(p)}><span class="mark {markOf(p)}"></span></td>
+              <td class="cell" title={tip(p)}>
+                <button type="button" class="mark {markOf(p)}" class:forced={p.forced}
+                  disabled={readonly || data.admin} onclick={() => cycle(p.code)}
+                  aria-label={p.label}>{own(p.code) ?? ''}</button>
+              </td>
             </tr>
           {/each}
         </tbody>
       </table>
+    {/if}
+
+    {#if data.problems.length}
+      <div class="problems">
+        <p>{_('Pages this user opens but cannot read:')}</p>
+        <ul>
+          {#each data.problems as pr (pr.page + pr.what)}
+            <li>
+              <strong>{pr.title ?? pr.page}</strong>: {_('reads')} <code>{pr.what}</code>;
+              {_('it needs')} <code>{pr.grant}</code>
+            </li>
+          {/each}
+        </ul>
+      </div>
     {/if}
   {/if}
 </div>
@@ -230,11 +297,44 @@
     text-align: center;
   }
   .mark {
-    display: inline-block;
-    width: 0.7rem;
-    height: 0.7rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    height: 1rem;
+    padding: 0;
     border-radius: 50%;
     border: 1px solid var(--kb-border-input);
+    background: transparent;
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--kb-bg);
+    cursor: pointer;
+  }
+  .mark:disabled {
+    cursor: default;
+  }
+  .mark.none {
+    color: var(--kb-text);
+  }
+  /* The user's own exception: a ring around the mark. */
+  .mark.forced {
+    box-shadow: 0 0 0 2px var(--kb-bg), 0 0 0 3.5px var(--kb-text-subtle);
+  }
+  .problems {
+    max-width: 40rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--kb-danger);
+    border-radius: 0.375rem;
+    color: var(--kb-text);
+  }
+  .problems p,
+  .problems ul {
+    margin: 0;
+  }
+  .problems ul {
+    padding-left: 1.25rem;
   }
   .mark.given {
     background: var(--kb-accent);

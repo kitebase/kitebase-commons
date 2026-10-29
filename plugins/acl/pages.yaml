@@ -1,9 +1,10 @@
 # The Roles tab of the user form, added to the `sections` tabs of users.
 #
-# One field, three widgets: the checklist for whoever assigns roles, the JSON
-# text for whoever would rather type the codes, and in its own tab what they
-# give (client/Access.svelte). All read the same draft, and the column's
-# validator (endpoints.py) names a code nobody declared.
+# Two fields, each with the widget for whoever assigns and a JSON text for
+# whoever would rather type the codes: the roles, and in Access the user's own
+# exceptions, on the matrix of what roles and exceptions give together
+# (client/Access.svelte). All edit the same draft, and the validators of the
+# columns (endpoints.py) name a code nobody declared.
 
 pages:
 
@@ -34,8 +35,8 @@ pages:
                         - name: roles
                           label: Role codes, as JSON
                           widget: json
-            # What the roles of the draft give, resolved by the server: a
-            # plugin widget on the same field, read only.
+            # What the draft gives, resolved by the server; a click on a cell
+            # forces it for this user alone.
             - id: access
               label: Access
               layout:
@@ -44,6 +45,18 @@ pages:
                   columns:
                     - id: access_matrix
                       fields:
-                        - name: roles
-                          label: What these roles give
+                        - name: acl_exceptions
+                          label: What this user may do
                           widget: acl.access
+                          help: >-
+                            The roles give the cells; a click forces one for this user
+                            alone, granted (+) or denied (-). A denial wins over the roles.
+                - id: access_text
+                  type: section
+                  label: As text
+                  columns:
+                    - id: access_json
+                      fields:
+                        - name: acl_exceptions
+                          label: Exceptions, as JSON
+                          widget: json

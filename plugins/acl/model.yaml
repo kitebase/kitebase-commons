@@ -15,3 +15,12 @@ tables:
         type: Json
         default: []
         validate: acl_roles
+
+      # The user's own exceptions to the roles: `+Publisher.create` grants,
+      # `-Book.read` denies, and the denial wins (guard.py). For the narrow
+      # case: a design that needs many of them wants another role.
+      - name: acl_exceptions
+        label: "Access exceptions"
+        type: Json
+        default: []
+        validate: acl_exceptions
