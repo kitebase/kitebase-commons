@@ -26,7 +26,17 @@ code runs would turn editing templates into running code.
 
 `table` puts the report in the catalog of that table: what the Print button of
 its views offers, under `label`. A report without a table is reached only by
-name, as the last step of a chain.
+name, as the last step of a chain. It says where the report is offered, not
+what it reads.
+
+The loop declares what it needs and nothing about permissions: it runs on a
+session that checks every read against the user's (`access.guard_session`),
+relations loaded on the way included, and a table the user cannot read stops
+the print with a 403 naming the report. A read the report means to make
+beyond them goes in `with access.system():`. `access=` adds a permission of
+the report's own, for printing that is an operation in itself:
+
+    @report('sales.invoice', table='Invoice', access='sales.print_invoice')
 """
 import contextvars
 from dataclasses import dataclass, field
@@ -53,6 +63,7 @@ class Report:
     params: Dict[str, Any] = field(default_factory=dict)
     table: Optional[str] = None    # the table whose Print button offers it
     label: Optional[str] = None    # what the Print button shows; default the short name
+    access: Any = None             # a permission, or a list, the report asks besides reports.run
 
     @property
     def domain(self) -> str:
@@ -73,7 +84,8 @@ _REPORTS: Dict[str, Report] = {}
 def register(name: str, loop: Callable, *, domain: str, replace: bool = False,
              renderer: type = AndRepRenderer, input: str = 'view', on_empty: str = 'all',
              options: Optional[str] = None, params: Optional[Dict[str, Any]] = None,
-             table: Optional[str] = None, label: Optional[str] = None) -> Report:
+             table: Optional[str] = None, label: Optional[str] = None,
+             access: Any = None) -> Report:
     """Bind `name` to `loop`. Raises ValueError on a name the registry refuses."""
     prefix, dot, rest = name.partition('.')
     if not dot or not prefix or not rest:
@@ -95,7 +107,7 @@ def register(name: str, loop: Callable, *, domain: str, replace: bool = False,
                          f"pass replace=True to replace it")
 
     found = _REPORTS[name] = Report(name, loop, renderer, input, on_empty, options,
-                                    dict(params or {}), table, label)
+                                    dict(params or {}), table, label, access)
     return found
 
 

@@ -22,6 +22,7 @@ pytest.importorskip("andrep.adapters.sqlalchemy")
 import kitebase.plugins  # noqa: E402
 import kitebase.source  # noqa: E402
 import kitebase.utils  # noqa: E402
+from kitebase import access  # noqa: E402
 from kitebase.endpoints import FileResult  # noqa: E402
 from kitebase.server_utils import handle_download, handle_generic_endpoint  # noqa: E402
 
@@ -59,6 +60,7 @@ class Customer:
 SHOP_REPORTS = '''
 from andrep import AndRepRenderer
 
+from kitebase import access
 from reports.registry import load_records, report
 
 
@@ -77,7 +79,8 @@ def customers(r, params):
         r.emit('band')
 
 
-@report('shop.cards', table='Customer', on_empty='row', options='card_options')
+@report('shop.cards', table='Customer', on_empty='row', options='card_options',
+        access='shop.print_cards')
 def cards(r, params):
     for row in load_records('Customer', params['ids']):
         r.emit('band')
@@ -91,6 +94,14 @@ def clash(r, params):
 @report('shop.users')
 def users(r, params):
     for row in load_records('User', params['ids']):
+        r.emit('band')
+
+
+@report('shop.ledger')
+def ledger(r, params):
+    for row in load_records('Customer', params['ids']):
+        with access.system():
+            row.orders            # the orders, read on purpose beyond the user's permissions
         r.emit('band')
 
 
@@ -144,6 +155,8 @@ def app(tmp_path_factory):
     write_json(andrep / 'customers_wide.json', make_template({'band': ['[row.id]']}))
     write_json(andrep / 'shop.customers_short.json', make_template({'band': ['[row.id]']}))
     write_json(andrep / 'cards.json', make_template({'band': ['[row.id]']}))
+    write_json(andrep / 'ledger.json', make_template(
+        {'band': ["[', '.join(o.number for o in row.orders)]"]}))
     write_json(andrep / 'clash.json', make_template({'band': ['x']}))
     write_json(andrep / 'users.json', make_template({'band': ['[row.username]', '[row.password]']}))
     write_json(andrep / 'side_customer.json', make_template({'band': ['[side]']}))
@@ -546,3 +559,57 @@ def test_a_post_processor_is_for_a_known_format(app):
     from reports import registry
     with pytest.raises(ValueError, match='format must be one of'):
         registry.register_post('shop.customers', lambda records, book: None, format='pdf')
+
+
+# ── Access: the loop reads for the user ──────────────────────────────────────
+
+class Denying(access.Guard):
+    def __init__(self, denied):
+        self.denied = set(denied)
+
+    def allows(self, permission, context):
+        return permission not in self.denied
+
+    def allows_undeclared(self, endpoint, context):
+        return True
+
+
+@pytest.fixture
+def denied():
+    def deny(*permissions):
+        access._GUARD = Denying(permissions)
+    yield deny
+    access._GUARD = access.OPEN
+
+
+def test_a_table_the_user_cannot_read_stops_the_print(app, denied):
+    denied('Customer.read')
+    result = run(app, report='shop.customers', ids=[1], format='json')
+    assert result['status_code'] == 403
+    assert "'Customers'" in result['message'] and 'Customer.read' in result['message']
+
+
+def test_a_relation_read_by_the_template_is_checked_too(app, denied):
+    denied('Order.read')
+    result = run(app, report='shop.customers', ids=[1], format='json')
+    assert result['status_code'] == 403
+    assert 'Order.read' in result['message']
+
+
+def test_system_reads_what_the_report_means_to_show(app, denied):
+    denied('Order.read')
+    assert rows(run(app, report='shop.ledger', ids=[1], format='json')) == [['A1, A2']]
+
+
+def test_the_permission_of_a_report_comes_before_its_loop(app, denied):
+    denied('shop.print_cards')
+    result = run(app, report='shop.cards', ids=[1], format='json')
+    assert result['status_code'] == 403
+    assert "'cards'" in result['message']
+
+
+def test_the_print_button_offers_what_the_user_may_print(app, denied):
+    denied('shop.print_cards')
+    body = press_print(app, table='Customer', id=1, view_ids=[2, 1])['data']
+    assert body['action'] == 'form'                       # one report left: its dialog
+    assert body['then']['params']['report'] == 'shop.customers'

@@ -129,6 +129,9 @@ def run(data: Dict[str, Any]) -> Any:
     if report.input == 'view' and not ids:
         return _refuse(_('No rows to print'))
     options = {k: v for k, v in data.items() if k not in RESERVED}
+    for permission in access.declared(report.access):
+        if not access.can(permission):
+            raise _denied(report, permission)
 
     app = kitebase.utils.get_app()
     loader = LayeredLoader(plugin_layers(app.pm))
@@ -156,6 +159,7 @@ def run(data: Dict[str, Any]) -> Any:
 
     params = {**report.params, 'ids': ids, 'options': options}
     with app.get_session() as session:
+        access.guard_session(session)
         token = registry.current_session.set(session)
         try:
             report.loop(r, params)
@@ -164,6 +168,8 @@ def run(data: Dict[str, Any]) -> Any:
                        'json': lambda: r.to_json().encode('utf-8'),
                        'xlsx': lambda: to_xlsx(r, registry.get_post(
                            report.name, 'xlsx', template))}[fmt]()
+        except access.AccessDenied as e:
+            raise _denied(report, e.permission) from None
         finally:
             registry.current_session.reset(token)
 
@@ -171,6 +177,17 @@ def run(data: Dict[str, Any]) -> Any:
 
 
 # ── The Print button ──────────────────────────────────────────────────────────
+
+def allowed(report: registry.Report) -> bool:
+    """Whether the current user holds the permissions the report declares."""
+    return all(access.can(p) for p in access.declared(report.access))
+
+
+def _denied(report: registry.Report, permission: str) -> access.AccessDenied:
+    return access.AccessDenied(permission, _f(
+        "You cannot print '{report}': it needs {permission}",
+        report=_(report.title), permission=permission))
+
 
 def rows_taken(report: registry.Report, data: Dict[str, Any]) -> list:
     """The rows a report prints from what the view sent: the ticked ones, or
@@ -244,8 +261,11 @@ def print_menu(data: Dict[str, Any]) -> Dict[str, Any]:
         report = registry.get(data['report'])
         if report is None or report.table != table:
             return _refuse(_f("Unknown report: '{report}'", report=data['report']))
+        for permission in access.declared(report.access):
+            if not access.can(permission):
+                raise _denied(report, permission)
     else:
-        catalog = registry.for_table(table) if table else []
+        catalog = [r for r in registry.for_table(table) if allowed(r)] if table else []
         if not catalog:
             return {'status': 'success', 'data': {'message': _('Nothing to print here')}}
         if len(catalog) > 1:

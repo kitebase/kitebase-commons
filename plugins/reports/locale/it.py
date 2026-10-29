@@ -7,6 +7,8 @@ register_translations('it', {
     'ids must be a list': 'ids deve essere una lista',
     "Unknown report: '{report}'": "Stampa sconosciuta: '{report}'",
     "Unknown report format: '{format}'": "Formato di stampa sconosciuto: '{format}'",
+    "You cannot print '{report}': it needs {permission}":
+        "Non puoi stampare '{report}': serve {permission}",
     "Report '{report}' has no template": "La stampa '{report}' non ha tracciati",
     "'{template}' is not a template of report '{report}'":
         "'{template}' non è un tracciato della stampa '{report}'",

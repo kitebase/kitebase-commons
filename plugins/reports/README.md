@@ -68,6 +68,25 @@ _andrep/products_store.json       # a variant born in production
 The plugin's name in front (`myplugin.products_a.json`) is optional, for when two
 plugins would collide in `_andrep/`.
 
+A loop declares what it needs and nothing about permissions. It runs on a
+session that checks every read against the user's (`access.guard_session` of
+Kitebase), relations loaded by the template included: a table the user cannot
+read stops the print with a 403 that names the report and the permission.
+Without an access-control plugin everything is allowed. A read the report means
+to make beyond the user's permissions is written as such, and `grep` finds it:
+
+```python
+for row in load_records('Delivery', params['ids']):
+    with access.system():          # from kitebase import access
+        row.partner.main_site      # shown on purpose to whoever prints
+    r.emit('row')
+```
+
+`access='myplugin.print_x'` on `@report` adds a permission of the report's own,
+for printing that is an operation in itself: checked before the loop, and the
+Print button does not offer the report to whoever lacks it. `table` says where a
+report is offered, not what it reads.
+
 The design, point by point, is in the Kitebase workspace documentation
 (`docs/pending/reporting.md`, and `docs/pending/media.md` for files and
 resources).
