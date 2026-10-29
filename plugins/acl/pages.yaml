@@ -1,8 +1,9 @@
 # The Roles tab of the user form, added to the `sections` tabs of users.
 #
-# One field, two widgets: the checklist for whoever assigns roles, the JSON
-# text for whoever would rather type the codes. Both edit the same draft, and
-# the column's validator (endpoints.py) names a code nobody declared.
+# One field, three widgets: the checklist for whoever assigns roles, the JSON
+# text for whoever would rather type the codes, and in its own tab what they
+# give (client/Access.svelte). All read the same draft, and the column's
+# validator (endpoints.py) names a code nobody declared.
 
 pages:
 
@@ -33,3 +34,16 @@ pages:
                         - name: roles
                           label: Role codes, as JSON
                           widget: json
+            # What the roles of the draft give, resolved by the server: a
+            # plugin widget on the same field, read only.
+            - id: access
+              label: Access
+              layout:
+                - id: access_main
+                  type: section
+                  columns:
+                    - id: access_matrix
+                      fields:
+                        - name: roles
+                          label: What these roles give
+                          widget: acl.access
