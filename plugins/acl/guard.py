@@ -14,6 +14,15 @@ A plugin declares its roles in `acl.yaml`, beside its model:
           - Book: [read, create, update]     # Book.read, Book.create, ...
           - Loan.*                           # every action on Loan
           - library.renew
+      library.desk:
+        grants:
+          - '*.label'                        # every reference shown by its label
+          - '-Member.label'                  # but not this one
+
+A grant with a leading `-` takes the permission away inside the role, from
+its own grants and from those of the roles it implies: a role says yes to what
+it grants and does not deny. A user holds a permission when one of the roles
+says yes, so a denial in one role does not reach another.
 
 A user holds role codes in the `roles` column; the token carries them, and the
 guard resolves them into permissions once per set of roles. `is_admin` is root:
@@ -26,7 +35,8 @@ declares no access unless the app's config assigns it one:
         library.renew: library.renew
 """
 import logging
-from typing import Any, Dict, FrozenSet, Iterable, List
+import re
+from typing import Any, Dict, FrozenSet, Iterable, List, Optional, Set, Tuple
 
 from kitebase import access
 from kitebase.server_utils import add_context_field
@@ -89,10 +99,22 @@ def resolve_roles(roles: Dict[str, Any]) -> Dict[str, FrozenSet[str]]:
     return resolved
 
 
+def _covers(grant: str, permission: str) -> bool:
+    if grant == permission:
+        return True
+    if grant.endswith('.*') and permission.startswith(grant[:-1]):
+        return True
+    return grant.startswith('*.') and permission.partition('.')[2] == grant[2:]
+
+
 def granted(permission: str, permissions: Iterable[str]) -> bool:
-    """Whether `permissions` covers `permission`; `Book.*` covers `Book.read`."""
-    return any(p == permission or (p.endswith('.*') and permission.startswith(p[:-1]))
-               for p in permissions)
+    """
+    Whether `permissions` covers `permission`: `Book.*` covers `Book.read`,
+    `*.label` covers `Book.label`, and a `-` before a code denies what it covers.
+    """
+    permissions = list(permissions)
+    return (any(_covers(p, permission) for p in permissions if not p.startswith('-'))
+            and not any(_covers(p[1:], permission) for p in permissions if p.startswith('-')))
 
 
 class RoleGuard(access.Guard):
@@ -118,13 +140,140 @@ class RoleGuard(access.Guard):
         context = context or {}
         if context.get(ADMIN_FIELD):
             return True
-        return granted(permission, self.permissions(context.get(ROLES_FIELD) or []))
+        return any(granted(permission, self.roles.get(code, ()))
+                   for code in context.get(ROLES_FIELD) or [])
 
     def allows_undeclared(self, endpoint: str, context: Any) -> bool:
         if (context or {}).get(ADMIN_FIELD):
             return True
         permission = self.endpoints.get(endpoint)
         return permission is not None and self.allows(permission, context)
+
+    # ── check: what is left to cover before production ─────────────────────
+
+    def diagnose(self, app: Any) -> List[Dict[str, Any]]:
+        from kitebase.diagnostics import make_issue
+        from kitebase.endpoints import _ACCESS, _ENDPOINTS
+
+        issues: List[Dict[str, Any]] = []
+        declared = dict(_items(app.pm.data.get('roles') or {}))
+        known = _known_permissions(app, _ACCESS)
+
+        for code, definition in declared.items():
+            plugin = (definition or {}).get('$plugin')
+            for grant in self.roles.get(code, ()):
+                if not _exists(grant.lstrip('-'), known, app.tables):
+                    issues.append(make_issue(
+                        'warning', 'acl-grant-unknown', f'roles.{code}',
+                        f"grants '{grant}', a permission nothing declares", plugin))
+
+        for table in app.tables:
+            if not any(granted(f'{table}.read', p) or granted(f'{table}.label', p)
+                       for p in self.roles.values()):
+                issues.append(make_issue(
+                    'warning', 'acl-table-closed', f'tables.{table}',
+                    'no role reads it: only the administrator does'))
+
+        for name in sorted(_ENDPOINTS):
+            if _ACCESS.get(name, access.UNDECLARED) is access.UNDECLARED \
+                    and name not in self.endpoints:
+                issues.append(make_issue(
+                    'warning', 'acl-endpoint-undeclared', f'endpoints.{name}',
+                    "declares no access: closed to all but the administrator; "
+                    "declare `access=` or assign one in the app's `acl.endpoints`"))
+
+        issues.extend(self._diagnose_pages(app))
+        return issues
+
+    def _diagnose_pages(self, app: Any) -> List[Dict[str, Any]]:
+        """A role that opens a page whose query reads a table it cannot read:
+        the page answers 403 to that role, found here instead of on screen."""
+        from kitebase.diagnostics import make_issue
+        from kitebase.pages import load_page, page_permissions
+
+        issues = []
+        for page_id, raw in _items(app.pm.data.get('pages') or {}):
+            needs = page_permissions(app, page_id) or []
+            try:
+                refs = _page_references(app, load_page(app, page_id))
+            except ValueError:
+                continue    # a broken page is reported by the core's checks
+            for code, permissions in self.roles.items():
+                if not all(granted(n, permissions) for n in needs):
+                    continue
+                for table, column in sorted(refs, key=str):
+                    if granted(f'{table}.read', permissions):
+                        continue
+                    if granted(f'{table}.label', permissions) and (
+                            column is None or column in access.label_columns(table, app)):
+                        continue
+                    what = f'{table}.{column}' if column else f'the label of {table}'
+                    issues.append(make_issue(
+                        'warning', 'acl-page-unreadable', f'pages.{page_id}',
+                        f"role '{code}' opens it but cannot read {what}: the page "
+                        f"answers 403; grant {table}.read or {table}.label, or adapt the page",
+                        (raw or {}).get('$plugin') if isinstance(raw, dict) else None))
+        return issues
+
+
+_REFERENCE = re.compile(r'^([A-Z]\w*)\.(\w+)(?:\s+as\s+\w+)?$', re.IGNORECASE)
+
+
+def _page_references(app: Any, page: Any) -> Set[Tuple[str, Optional[str]]]:
+    """The other tables a page reads: `Model.column` in its columns and fields,
+    and the label of every foreign key a form shows (column None)."""
+    model = ((page or {}).get('content') or {}).get('source', {}).get('model')
+    found: Set[Tuple[str, Optional[str]]] = set()
+
+    def walk(obj: Any) -> None:
+        if isinstance(obj, list):
+            for item in obj:
+                walk(item)
+        elif isinstance(obj, dict):
+            fk = obj.get('foreign_key')
+            if isinstance(obj.get('name'), str) and isinstance(fk, dict) \
+                    and fk.get('target') in app.tables:
+                found.add((fk['target'], None))
+            for value in obj.values():
+                walk(value)
+        elif isinstance(obj, str):
+            match = _REFERENCE.match(obj.strip())
+            if match and match.group(1) in app.tables and match.group(1) != model:
+                found.add((match.group(1), match.group(2)))
+
+    walk(page)
+    return found
+
+
+def _known_permissions(app: Any, endpoint_access: Dict[str, Any]) -> Set[str]:
+    """Every permission something asks for: derived from the tables, declared
+    in `permissions:`, required by an endpoint or by an `access:` in YAML."""
+    known = {f'{t}.{a}' for t in app.tables for a in access.TABLE_ACTIONS}
+    known.update(k for k, _ in _items(app.pm.data.get('permissions') or {}))
+    known.update(v for v in endpoint_access.values()
+                 if isinstance(v, str) and not v.startswith('$'))
+
+    def walk(obj: Any) -> None:
+        if isinstance(obj, list):
+            for item in obj:
+                walk(item)
+        elif isinstance(obj, dict):
+            known.update(access.declared(obj.get('access')))
+            for value in obj.values():
+                walk(value)
+
+    for section in ('pages', 'views', 'menu_items'):
+        walk(app.pm.data.get(section))
+    return known
+
+
+def _exists(grant: str, known: Set[str], tables: Iterable[str]) -> bool:
+    if grant.startswith('*.'):
+        return grant[2:] in access.TABLE_ACTIONS or grant[2:] == '*'
+    if grant.endswith('.*'):
+        prefix = grant[:-1]
+        return grant[:-2] in tables or any(k.startswith(prefix) for k in known)
+    return grant in known
 
 
 GUARD = RoleGuard()
