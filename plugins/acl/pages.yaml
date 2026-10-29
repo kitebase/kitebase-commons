@@ -1,0 +1,35 @@
+# The Roles tab of the user form, added to the `sections` tabs of users.
+#
+# One field, two widgets: the checklist for whoever assigns roles, the JSON
+# text for whoever would rather type the codes. Both edit the same draft, and
+# the column's validator (endpoints.py) names a code nobody declared.
+
+pages:
+
+  user_form:
+    content:
+      layout:
+        - id: sections
+          pages:
+            - id: roles
+              label: Roles
+              layout:
+                - id: roles_main
+                  type: section
+                  columns:
+                    - id: roles_pick
+                      fields:
+                        - name: roles
+                          label: Roles
+                          widget: checklist
+                          choices_endpoint: acl_roles
+                          help: A role brings the roles it implies, shown checked and greyed.
+                - id: roles_text
+                  type: section
+                  label: As text
+                  columns:
+                    - id: roles_json
+                      fields:
+                        - name: roles
+                          label: Role codes, as JSON
+                          widget: json

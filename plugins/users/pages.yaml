@@ -11,6 +11,9 @@ pages:
   #
   # Hand-written fields carry no column attributes: labels, types and widgets
   # are stated here.
+  #
+  # The fields sit in a tab of `sections` even when it is the only one: it is
+  # the hook a plugin adds its own tab to, by id (acl brings Roles).
   user_form:
     title: User
     content:
@@ -18,23 +21,41 @@ pages:
       source:
         model: User
         id: $props.id
-      fields:
-        - name: name
-          label: Name
-        - name: username
-          label: Username
-        - name: email
-          label: Email
-        - name: password
-          label: Password
-          widget: password
-          help: Leave it empty to keep the current one. A new user needs one.
-        - name: is_active
-          label: Active
-          type: Boolean
-        - name: is_admin
-          label: Administrator
-          type: Boolean
+      layout:
+        - id: sections
+          type: tabs
+          pages:
+            - id: account
+              label: Account
+              layout:
+                - id: account_main
+                  type: section
+                  columns:
+                    - id: identity
+                      fields:
+                        - name: name
+                          label: Name
+                          width: 100%
+                        - name: username
+                          label: Username
+                          width: 50%
+                        - name: email
+                          label: Email
+                          width: 50%
+                        - name: password
+                          label: Password
+                          widget: password
+                          help: Leave it empty to keep the current one. A new user needs one.
+                          width: 50%
+                        - filler:
+                        - name: is_active
+                          label: Active
+                          type: Boolean
+                          width: 50%
+                        - name: is_admin
+                          label: Administrator
+                          type: Boolean
+                          width: 50%
       actions:
         toolbar: [save, cancel]
 
