@@ -187,7 +187,7 @@ class RoleGuard(access.Guard):
 
     def _diagnose_pages(self, app: Any) -> List[Dict[str, Any]]:
         """A role that opens a page whose query reads a table it cannot read:
-        the page answers 403 to that role, found here instead of on screen."""
+        the page opens and its data answers 403, found here instead of on screen."""
         from kitebase.diagnostics import make_issue
         from kitebase.pages import load_page, page_permissions
 
@@ -208,10 +208,13 @@ class RoleGuard(access.Guard):
                             column is None or column in access.label_columns(table, app)):
                         continue
                     what = f'{table}.{column}' if column else f'the label of {table}'
+                    # with the label already granted only read is left to give
+                    grant = (f'{table}.read' if granted(f'{table}.label', permissions)
+                             else f'{table}.read or {table}.label')
                     issues.append(make_issue(
                         'warning', 'acl-page-unreadable', f'pages.{page_id}',
-                        f"role '{code}' opens it but cannot read {what}: the page "
-                        f"answers 403; grant {table}.read or {table}.label, or adapt the page",
+                        f"role '{code}' opens it but cannot read {what}: its "
+                        f"query answers 403; grant {grant}, or adapt the page",
                         (raw or {}).get('$plugin') if isinstance(raw, dict) else None))
         return issues
 
