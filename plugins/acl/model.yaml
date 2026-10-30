@@ -3,6 +3,10 @@
 # A flat list of role codes: the tree lives in the definitions (`implies`), so
 # assigning a supervisor brings what the supervisor implies with no second
 # entry. Codes, not foreign keys: roles are declared in YAML, not stored as rows.
+#
+# Roles, exceptions and the administrator flag form the column group `acl`:
+# `acl.read` shows them, `acl.write` changes them. Without it, whoever edits
+# users cannot give themselves more than they have.
 
 tables:
 
@@ -15,6 +19,7 @@ tables:
         type: Json
         default: []
         validate: acl_roles
+        column_group: acl
 
       # The user's own exceptions to the roles: `+Publisher.create` grants,
       # `-Book.read` denies, and the denial wins (guard.py). For the narrow
@@ -24,3 +29,7 @@ tables:
         type: Json
         default: []
         validate: acl_exceptions
+        column_group: acl
+
+      - name: is_admin
+        column_group: acl

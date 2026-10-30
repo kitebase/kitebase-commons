@@ -32,9 +32,13 @@ denies, and the denial wins over everything but root:
     effective = (from the roles + granted) - denied
 
 `is_admin` is root:
-it passes every check. A permission no role grants is refused, so with this
-plugin on a table nobody was given stays closed, and so does an endpoint that
-declares no access unless the app's config assigns it one:
+it passes every check. Roles, exceptions and `is_admin` are the column group
+`acl` (model.yaml): `acl.read` shows them and `acl.write` changes them, so
+`User.update` alone edits a user without raising anyone's privileges.
+
+A permission no role grants is refused, so with this plugin on a table nobody
+was given stays closed, and so does an endpoint that declares no access unless
+the app's config assigns it one:
 
     acl:
       endpoints:
@@ -111,7 +115,9 @@ def _covers(grant: str, permission: str) -> bool:
         return True
     if grant.endswith('.*') and permission.startswith(grant[:-1]):
         return True
-    return grant.startswith('*.') and permission.partition('.')[2] == grant[2:]
+    # `*.label` is every table, in CamelCase: not a column group like `acl.read`
+    return (grant.startswith('*.') and permission[:1].isupper()
+            and permission.partition('.')[2] == grant[2:])
 
 
 def granted(permission: str, permissions: Iterable[str]) -> bool:
@@ -285,6 +291,8 @@ def _known_permissions(app: Any, endpoint_access: Dict[str, Any]) -> Set[str]:
     """Every permission something asks for: derived from the tables, declared
     in `permissions:`, required by an endpoint or by an `access:` in YAML."""
     known = {f'{t}.{a}' for t in app.tables for a in access.TABLE_ACTIONS}
+    known.update(f'{g}.{a}' for table in app.tables.values()
+                 for g in table.column_groups.values() for a in access.COLUMN_ACTIONS)
     known.update(k for k, _ in _items(app.pm.data.get('permissions') or {}))
     known.update(v for v in endpoint_access.values()
                  if isinstance(v, str) and not v.startswith('$'))
