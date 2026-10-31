@@ -32,7 +32,8 @@ what it reads.
 The loop declares what it needs and nothing about permissions: it runs on a
 session that checks every read against the user's (`access.guard_session`),
 relations loaded on the way included, and a table the user cannot read stops
-the print with a 403 naming the report. A read the report means to make
+the print with a 403 naming the report. A table the user reads only on some
+rows (a record rule) prints those rows only. A read the report means to make
 beyond them goes in `with access.system():`. `access=` adds a permission of
 the report's own, for printing that is an operation in itself:
 
