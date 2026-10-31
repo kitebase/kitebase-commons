@@ -19,6 +19,17 @@ A plugin declares its roles in `acl.yaml`, beside its model:
           - '*.label'                        # every reference shown by its label
           - '-Member.label'                  # but not this one
 
+A grant can hold on some rows only, a record rule: a condition in the query
+builder's filter syntax, with `$ctx.<field>` for a value of the user's
+context. Only the four row actions of a table, spelled out, take one:
+
+      library.member:
+        grants:
+          - Loan.read: { where: { member_id: $ctx.member_id } }
+
+Grants of the same permission from several roles add up (OR), and one with no
+condition takes them all in. An exception that grants is a grant without one.
+
 A grant with a leading `-` takes the permission away inside the role, from
 its own grants and from those of the roles it implies: a role says yes to what
 it grants and does not deny. A user holds a permission when one of the roles
@@ -63,51 +74,100 @@ def _items(definition: Dict[str, Any]):
     return [(k, v) for k, v in (definition or {}).items() if not str(k).startswith('$')]
 
 
+# The permissions a condition may narrow: a row action of a table, spelled out
+_CONDITIONAL = re.compile(r'^[A-Z]\w*\.(' + '|'.join(access.ROW_ACTIONS) + r')$')
+
+Conditions = Dict[str, Tuple[Any, ...]]
+
+
 def expand_grant(item: Any, role: str) -> List[str]:
     """One entry of `grants:` as the permission codes it stands for."""
+    return [code for code, _where in expand_conditional(item, role)]
+
+
+def expand_conditional(item: Any, role: str) -> List[Tuple[str, Any]]:
+    """One entry of `grants:` as (permission code, its condition or None)."""
     if isinstance(item, str):
-        return [item]
+        return [(item, None)]
     entries = _items(item) if isinstance(item, dict) else []
     if len(entries) == 1:
         code, value = entries[0]
         if value is None:
-            return [code]
+            return [(code, None)]
         if isinstance(value, list):
-            return [f'{code}.{action}' for action in value]
+            return [(f'{code}.{action}', None) for action in value]
         if isinstance(value, dict):
-            raise ValueError(f"Role '{role}': the grant on '{code}' has a condition, "
-                             f"and conditions are not supported yet")
+            return [(code, _condition(code, value, role))]
     raise ValueError(f"Role '{role}': cannot read the grant {item!r}")
+
+
+def _condition(code: str, value: Dict[str, Any], role: str) -> Any:
+    extra = sorted(k for k, _v in _items(value) if k != 'where')
+    if extra:
+        raise ValueError(f"Role '{role}': the grant on '{code}' takes only `where`, "
+                         f"not {', '.join(extra)}")
+    where = value.get('where')
+    if not where or not isinstance(where, (dict, list)):
+        raise ValueError(f"Role '{role}': the grant on '{code}' needs a `where`, "
+                         f"a mapping of column to value or a list of conditions")
+    if not _CONDITIONAL.match(code):
+        raise ValueError(f"Role '{role}': '{code}' cannot take a condition; only the row "
+                         f"actions of a table do, spelled out: "
+                         f"{', '.join('T.' + a for a in access.ROW_ACTIONS)}")
+    return where
 
 
 def resolve_roles(roles: Dict[str, Any]) -> Dict[str, FrozenSet[str]]:
     """
     Every role as the permissions it gives, those of the roles it implies
-    included. A cycle is an error: the closure has no answer. A role implied
-    but never declared gives nothing, and is reported.
+    included, conditional ones too. A cycle is an error: the closure has no
+    answer. A role implied but never declared gives nothing, and is reported.
+    """
+    return resolve_rules(roles)[0]
+
+
+def resolve_rules(roles: Dict[str, Any]) -> Tuple[Dict[str, FrozenSet[str]],
+                                                   Dict[str, FrozenSet[str]],
+                                                   Dict[str, Conditions]]:
+    """
+    Every role three ways: all the permissions it gives, those it gives on
+    every row (denials included in both), and the conditions of the others,
+    permission by permission. What a role implies comes along in each.
     """
     declared = dict(_items(roles))
-    own = {code: [p for item in (d or {}).get('grants') or [] for p in expand_grant(item, code)]
+    own = {code: [g for item in (d or {}).get('grants') or []
+                  for g in expand_conditional(item, code)]
            for code, d in declared.items()}
-    resolved: Dict[str, FrozenSet[str]] = {}
+    resolved: Dict[str, Tuple[FrozenSet[str], FrozenSet[str], Conditions]] = {}
+    empty: Tuple[FrozenSet[str], FrozenSet[str], Conditions] = (frozenset(), frozenset(), {})
 
-    def visit(code: str, path: List[str]) -> FrozenSet[str]:
+    def visit(code: str, path: List[str]):
         if code in resolved:
             return resolved[code]
         if code in path:
             raise ValueError(f"Roles imply each other in a cycle: {' -> '.join(path + [code])}")
         if code not in declared:
             _log.warning("Role '%s' is implied by '%s' but declared nowhere", code, path[-1])
-            return frozenset()
-        permissions = set(own[code])
+            return empty
+        every_row = {p for p, where in own[code] if where is None}
+        conditions: Dict[str, List[Any]] = {}
+        for p, where in own[code]:
+            if where is not None:
+                conditions.setdefault(p, []).append(where)
         for implied in (declared[code] or {}).get('implies') or []:
-            permissions |= visit(implied, path + [code])
-        resolved[code] = frozenset(permissions)
+            _all, implied_rows, implied_conditions = visit(implied, path + [code])
+            every_row |= implied_rows
+            for p, wheres in implied_conditions.items():
+                conditions.setdefault(p, []).extend(wheres)
+        resolved[code] = (frozenset(every_row | set(conditions)), frozenset(every_row),
+                          {p: tuple(w) for p, w in conditions.items()})
         return resolved[code]
 
     for code in declared:
         visit(code, [])
-    return resolved
+    return ({c: r[0] for c, r in resolved.items()},
+            {c: r[1] for c, r in resolved.items()},
+            {c: r[2] for c, r in resolved.items()})
 
 
 def _covers(grant: str, permission: str) -> bool:
@@ -134,11 +194,19 @@ class RoleGuard(access.Guard):
 
     def __init__(self) -> None:
         self.roles: Dict[str, FrozenSet[str]] = {}
+        self.every_row: Dict[str, FrozenSet[str]] = {}
+        self.conditional: Dict[str, Conditions] = {}
         self.endpoints: Dict[str, str] = {}
         self._cache: Dict[FrozenSet[str], FrozenSet[str]] = {}
 
     def bind(self, app: Any) -> None:
-        self.roles = resolve_roles(app.pm.data.get('roles') or {})
+        self.roles, self.every_row, self.conditional = resolve_rules(
+            app.pm.data.get('roles') or {})
+        for role, conditions in self.conditional.items():
+            for permission in conditions:
+                if permission.split('.')[0] not in app.tables:
+                    raise ValueError(f"Role '{role}': '{permission}' has a condition, "
+                                     f"and no table is called {permission.split('.')[0]}")
         self.endpoints = (app.pm.config.get('acl') or {}).get('endpoints') or {}
         self._cache = {}
 
@@ -165,6 +233,22 @@ class RoleGuard(access.Guard):
             return True
         return self.holds(permission, context.get(ROLES_FIELD) or [],
                           context.get(EXCEPTIONS_FIELD) or [])
+
+    def conditions(self, permission: str, context: Any) -> Optional[List[Any]]:
+        context = context or {}
+        if context.get(ADMIN_FIELD):
+            return None
+        exceptions = context.get(EXCEPTIONS_FIELD) or []
+        if any(e.startswith('+') and _covers(e[1:], permission) for e in exceptions):
+            return None
+        wheres: List[Any] = []
+        for code in context.get(ROLES_FIELD) or []:
+            if not granted(permission, self.roles.get(code, ())):
+                continue        # not given, or denied within the role
+            if granted(permission, self.every_row.get(code, ())):
+                return None     # a grant on every row takes the conditions in
+            wheres.extend(self.conditional.get(code, {}).get(permission, ()))
+        return wheres or None
 
     def allows_undeclared(self, endpoint: str, context: Any) -> bool:
         if (context or {}).get(ADMIN_FIELD):
