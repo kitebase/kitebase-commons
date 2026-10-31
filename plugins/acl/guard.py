@@ -289,7 +289,37 @@ class RoleGuard(access.Guard):
                     "declares no access: closed to all but the administrator; "
                     "declare `access=` or assign one in the app's `acl.endpoints`"))
 
+        issues.extend(self._diagnose_conditions(app, declared))
         issues.extend(self._diagnose_pages(app))
+        return issues
+
+    def _diagnose_conditions(self, app: Any, declared: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """A condition that does not compile breaks every query of its role on
+        its table: an error. A `$ctx` field the login does not put in the token
+        refuses them all: a warning, since a host's token may carry it."""
+        from kitebase.diagnostics import make_issue
+        from kitebase.server_utils import context_fields
+
+        fields = set(context_fields(app.pm.config.get('authentication') or {}, default=['id']))
+        issues: List[Dict[str, Any]] = []
+        for code, definition in declared.items():
+            plugin = (definition or {}).get('$plugin')
+            for item in (definition or {}).get('grants') or []:
+                for permission, where in expand_conditional(item, code):
+                    if where is None:
+                        continue
+                    for field in sorted(_context_names(where) - fields):
+                        issues.append(make_issue(
+                            'warning', 'acl-condition-context', f'roles.{code}',
+                            f"the condition on '{permission}' uses $ctx.{field}, which "
+                            f"the login does not put in the token: every query refuses",
+                            plugin))
+                    problem = _condition_problem(app, permission.split('.')[0], where)
+                    if problem:
+                        issues.append(make_issue(
+                            'error', 'acl-condition-invalid', f'roles.{code}',
+                            f"the condition on '{permission}' cannot be read: {problem}",
+                            plugin))
         return issues
 
     def _diagnose_pages(self, app: Any) -> List[Dict[str, Any]]:
@@ -306,6 +336,64 @@ class RoleGuard(access.Guard):
                     f"query answers 403; grant {problem['grant']}, or adapt the page",
                     problem['plugin']))
         return issues
+
+
+def _context_names(where: Any) -> Set[str]:
+    """The fields a condition takes from the context, `$ctx.<field>`."""
+    if isinstance(where, str):
+        return {where[len(access.CTX_PREFIX):]} if where.startswith(access.CTX_PREFIX) else set()
+    if isinstance(where, dict):
+        return set().union(*(_context_names(v) for v in where.values()))
+    if isinstance(where, list):
+        return set().union(*(_context_names(v) for v in where))
+    return set()
+
+
+def _condition_problem(app: Any, table: str, where: Any) -> Optional[str]:
+    """
+    What is wrong with a condition, or None. Compiled when the models exist
+    (a running app); from the table definition otherwise (`check` on the
+    command line), where only bare column names can be told apart: a path
+    through relationships is left to the first query.
+    """
+    if table in (getattr(app, 'models', None) or {}):
+        try:
+            access.compile_conditions(table, [access._as_conditions(_blank_context(where))], app)
+        except Exception as e:
+            return str(e)
+        return None
+    known = {col.name for col in app.tables[table].effective_columns}
+    unknown = sorted(n for n in _condition_columns(where) if '.' not in n and n not in known)
+    return f"{table} has no column {', '.join(unknown)}" if unknown else None
+
+
+_NOT_COLUMNS = {'op', 'conditions', 'table', 'column', 'value'}
+
+
+def _condition_columns(where: Any) -> Set[str]:
+    """The column names a condition is written on: the keys of its mappings."""
+    if isinstance(where, dict):
+        names = {k for k in where if isinstance(k, str) and k not in _NOT_COLUMNS}
+        if 'column' in where and isinstance(where['column'], str):
+            names.add(where['column'])
+        for value in where.values():
+            if isinstance(value, (dict, list)):
+                names |= _condition_columns(value)
+        return names
+    if isinstance(where, list):
+        return set().union(*(_condition_columns(v) for v in where)) if where else set()
+    return set()
+
+
+def _blank_context(where: Any) -> Any:
+    """A condition with its `$ctx` values left empty, to compile it at `check`."""
+    if isinstance(where, str) and where.startswith(access.CTX_PREFIX):
+        return None
+    if isinstance(where, dict):
+        return {k: _blank_context(v) for k, v in where.items()}
+    if isinstance(where, list):
+        return [_blank_context(v) for v in where]
+    return where
 
 
 def unreadable_pages(app: Any, holds: Callable[[str], bool]) -> List[Dict[str, Any]]:
