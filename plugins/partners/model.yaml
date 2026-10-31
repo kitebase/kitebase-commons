@@ -6,9 +6,8 @@
 # requiredness belongs to the view as a reactive `required` — a NOT NULL column
 # of one role would stop every other role from being created.
 #
-# Deliberately not here, so they are not added back: a registry-wide `code`, the
-# registry data of a natural person (in `persons`), a `merged_into` pointer.
-# README.md says why.
+# Deliberately not here: a registry-wide `code`, the registry data of a natural
+# person (in `persons`), a `merged_into` pointer. README.md says why.
 
 tables:
 
@@ -168,7 +167,6 @@ tables:
 
     columns:
 
-      # The code is the key: it is the value stored inside Partner.roles.
       - name: id
         type: ShortID
         label: "Code"
@@ -177,9 +175,6 @@ tables:
         type: Description
         label: "Label"
 
-      # Display order, and the tie-break when two roles of the same partner
-      # would fill the same field: the one listed first wins.
-      #
       # Never declared in a plugin's `data:` — numbers picked by two plugins
       # collide with nothing to arbitrate them. A declaration carries the
       # position instead (`$after` / `$before`), and a reordering made from the
