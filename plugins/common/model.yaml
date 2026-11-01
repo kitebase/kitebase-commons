@@ -99,6 +99,32 @@ types:
     widget: email
     validate: email_validator
 
+  # Files the row refers to. The column stores `root:path`, the bytes stay in
+  # the root; the core reads `media:` and the column names its `root:` among
+  # those of config.yaml (kitebase.media).
+  Image:
+    base: String
+    length: 255
+    media: image
+    accept: [jpg, jpeg, png, webp, gif]
+    max_size: 10MB
+
+  # Which files it takes is the column's to say: `accept: [pdf]`.
+  File:
+    base: String
+    length: 255
+    media: file
+    max_size: 20MB
+
+  # A folder of files, found on disk: computed from the record, never stored,
+  # so its root needs a layout of the record alone (by_record).
+  Files:
+    base: String
+    media: files
+    virtual: true
+    editable: false
+    max_size: 20MB
+
   Json:
     base: JSON
     widget: json
