@@ -108,6 +108,8 @@ types:
     media: image
     accept: [jpg, jpeg, png, webp, gif]
     max_size: 10MB
+    # The longest side the browser reduces a photo to before sending it.
+    resize: 2048
 
   # Which files it takes is the column's to say: `accept: [pdf]`.
   File:
