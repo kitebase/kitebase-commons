@@ -189,7 +189,8 @@ types:
       # "when is now", so moving the storage to UTC one day is one function.
       #
       # `query_rank: more`: asked when something looks wrong, not every day, so
-      # the query editor keeps them behind "Show more".
+      # the query editor keeps them behind "Show more". `duplicate: False`: a
+      # copy is a new row, with times of its own.
       - name: created_at
         type: DateTime
         granularity: second
@@ -197,6 +198,7 @@ types:
         deferred: True      # filled at save: a form leaves it to the server
         nullable: False
         query_rank: more
+        duplicate: False
       - name: updated_at
         type: DateTime
         granularity: second
@@ -205,6 +207,7 @@ types:
         deferred: True
         nullable: False
         query_rank: more
+        duplicate: False
 
   # Five columns that always travel together, declared once: every table that
   # has an address has the same one, and widening it here reaches them all.
