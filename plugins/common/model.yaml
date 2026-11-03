@@ -177,6 +177,19 @@ types:
     precision: 12
     scale: 3
 
+  # The place of a row among its siblings, the order a reader gave them by
+  # hand: a collection that declares it renumbers it 1, 2, 3 when it saves.
+  # A number of service, not of the domain: it changes as rows move, so it is
+  # `hidden` (generated forms and lists leave it out) and nobody queries it.
+  # A line number to quote outside is another column, one that never moves.
+  Sequence:
+    base: Integer
+    label: "Sequence"
+    default: 0
+    nullable: False
+    hidden: True
+    query_rank: none
+
   # When a row appeared and when it was last touched. Two columns nobody wants
   # to declare and everybody wants to have — the first question asked of any
   # record that looks wrong.
