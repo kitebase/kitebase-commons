@@ -1,0 +1,17 @@
+# The values an installation changes while it runs: the settings.
+#
+# The core has the port (kitebase.settings: `get`, the `$setting.<key>` token of
+# the pages); this plugin decides. It reads the catalog every plugin declares
+# under `settings:`, keeps in the `Setting` table only what the installation
+# changed, and answers each key with that row or the catalog's default.
+#
+# Without this plugin an application works, without the values: a token gives
+# nothing and `check` says so. A plugin that declares a setting does not depend
+# on this one.
+name: settings
+version: 0.0.1
+description: Settings declared by the plugins, changed by the installation
+license: MIT
+author: "Claudio Driussi"
+url: https://claudiodriussi.it
+depends_on: [common]

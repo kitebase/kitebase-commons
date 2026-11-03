@@ -1,0 +1,31 @@
+tables:
+
+  # What the installation decided, one row per key: a key without a row follows
+  # the default of the catalog, a key with one keeps its value even when the
+  # catalog's default changes. Restoring the default deletes the row. Configuration only: the state an operation writes (counters, the last
+  # page printed) belongs to the tables of its domain.
+  Setting:
+    name: settings
+    label: Setting
+    columns:
+      - name: key
+        type: String
+        length: 100
+        primary_key: true
+        label: Key
+
+      - name: value
+        type: Json
+        label: Value
+
+      - name: updated_at
+        type: DateTime
+        label: Updated
+        default: $now
+
+      # The user's id, without a foreign key: the settings of a tenant will keep
+      # the same columns, and a tenant's table cannot point at the master's.
+      - name: updated_by
+        type: Integer
+        nullable: true
+        label: Updated by

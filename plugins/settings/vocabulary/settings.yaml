@@ -1,0 +1,6 @@
+# The keys the `settings:` root may use, path by path (kitebase/vocabulary.py).
+# Generated, then reviewed: KITEBASE_VOCABULARY_UPDATE=1 kitebase check
+# adds, never removes. '*' is an open map: its keys are data.
+settings.*: [help, items, label]
+settings.*.items[]: [default, help, label, name, type]
+settings.*.items[].default: '*'
