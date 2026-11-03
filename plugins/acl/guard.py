@@ -60,6 +60,7 @@ import re
 from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Optional, Set, Tuple
 
 from kitebase import access
+from kitebase.sections import register_section
 from kitebase.server_utils import add_context_field
 
 ADMIN_FIELD = 'is_admin'
@@ -497,3 +498,7 @@ access.set_guard(GUARD)
 add_context_field(ROLES_FIELD)
 add_context_field(ADMIN_FIELD)
 add_context_field(EXCEPTIONS_FIELD)
+
+# The roots of the merged tree this plugin reads.
+register_section('roles')
+register_section('permissions')
