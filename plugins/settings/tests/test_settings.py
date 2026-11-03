@@ -133,7 +133,8 @@ def test_an_unknown_group_is_a_404(app):
 def test_a_changed_value_is_a_row_and_is_read_back(app):
     result = call(app, 'set_settings', group='shop', values={'default_discount': '12.5'})
     assert result['status'] == 'success', result
-    item = by_name(result)['default_discount']
+    assert result['data']['default_discount'] == 12.5     # the values, as a form expects
+    item = by_name(call(app, 'get_settings', group='shop'))['default_discount']
     assert (item['value'], item['set']) == (12.5, True)
     assert port.get('shop.default_discount') == 12.5
 
@@ -155,8 +156,8 @@ def test_a_form_saved_unchanged_records_nothing(app):
 
 def test_a_value_set_back_to_the_default_is_a_decision_and_stays(app):
     call(app, 'set_settings', group='shop', values={'greeting': 'Hello'})
-    result = call(app, 'set_settings', group='shop', values={'greeting': 'Welcome'})
-    item = by_name(result)['greeting']
+    call(app, 'set_settings', group='shop', values={'greeting': 'Welcome'})
+    item = by_name(call(app, 'get_settings', group='shop'))['greeting']
     assert (item['value'], item['default'], item['set']) == ('Welcome', 'Welcome', True)
     assert count(app) == 1
 
@@ -184,9 +185,9 @@ def test_a_later_default_reaches_only_what_was_not_set(app):
 
 def test_reset_makes_the_item_follow_the_catalog_again(app):
     call(app, 'set_settings', group='shop', values={'default_discount': 20})
-    result = call(app, 'set_settings', group='shop', values={'default_discount': 20},
-                  reset=['default_discount'])
-    item = by_name(result)['default_discount']
+    call(app, 'set_settings', group='shop', values={'default_discount': 20},
+         reset=['default_discount'])
+    item = by_name(call(app, 'get_settings', group='shop'))['default_discount']
     assert (item['value'], item['set']) == (10, False)
     assert count(app) == 0
 
@@ -205,6 +206,35 @@ def test_a_value_the_type_refuses_writes_nothing(app):
 def test_a_json_value_is_kept_as_it_is(app):
     call(app, 'set_settings', group='shop', values={'reminder_days': [15, 30, 90]})
     assert port.get('shop.reminder_days') == [15, 30, 90]
+
+
+# ── The form and the administrator's view ─────────────────────────────────────
+
+def test_the_form_loads_and_saves_flat_values(app):
+    """What DataForm does with `source.endpoint` and `save_endpoint`."""
+    loaded = call(app, 'settings_values', group='shop')['data']
+    assert loaded == {'default_discount': 10, 'greeting': 'Welcome',
+                      'reminder_days': [30, 60], 'open_on_sunday': False}
+    saved = call(app, 'set_settings', group='shop', data={**loaded, 'greeting': 'Hi'})
+    assert saved['data'] == {**loaded, 'greeting': 'Hi'}
+    assert count(app) == 1
+
+
+def test_the_list_shows_every_item_and_the_orphans(app):
+    call(app, 'set_settings', group='shop', values={'reminder_days': [7]})
+    with app.get_session() as s:
+        s.add(app.models['Setting'](key='gone.away', value=3))
+        s.commit()
+    listed = {r['id']: r for r in call(app, 'settings_list')['data']}
+    assert listed['shop.reminder_days']['state'] == 'set'
+    assert listed['shop.reminder_days']['value'] == '[7]'
+    assert listed['shop.greeting']['state'] == 'default'
+    assert listed['gone.away']['state'] == 'orphan'
+
+    result = call(app, 'settings_drop_orphans')
+    assert result['status'] == 'success', result
+    assert 'gone.away' not in {r['id'] for r in call(app, 'settings_list')['data']}
+    assert port.get('shop.reminder_days') == [7]        # a declared row stays
 
 
 # ── The page token ────────────────────────────────────────────────────────────

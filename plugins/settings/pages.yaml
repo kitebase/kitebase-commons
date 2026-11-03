@@ -1,0 +1,17 @@
+# The administrator's view of every setting (client/Admin.svelte). The plugin
+# brings the page, not its place: the application puts it in its menu. The form
+# of one group is the component `settings.group`, on a page the application
+# writes for that group:
+#
+#   pages:
+#     acquisitions_settings:
+#       title: Purchasing settings
+#       content: { type: plugin, component: settings.group, props: { group: acquisitions } }
+
+pages:
+  settings_admin:
+    title: Settings
+    access: Setting.read
+    content:
+      type: plugin
+      component: settings.admin

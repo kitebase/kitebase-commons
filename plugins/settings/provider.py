@@ -157,6 +157,16 @@ def write(app: Any, values: Dict[str, Any], reset: List[str] = ()) -> None:
         session.commit()
 
 
+def delete(app: Any, keys: List[str]) -> None:
+    """Delete the rows of these keys, whatever the catalog says of them."""
+    if not keys:
+        return
+    model = _model(app)
+    with app.get_session() as session:
+        session.query(model).filter(model.key.in_(keys)).delete(synchronize_session=False)
+        session.commit()
+
+
 # ── The provider ──────────────────────────────────────────────────────────────
 
 class TableProvider(port.SettingsProvider):
