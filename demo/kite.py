@@ -93,7 +93,6 @@ def main():
     with app.get_session() as session:
         for user in session.query(model.User).all():
             print(f"User {user.id}: {user.username} <{user.email}> admin={user.is_admin}")
-        print(f"Config rows: {session.query(model.Config).count()}")
 
     print("commons demo smoke OK")
 

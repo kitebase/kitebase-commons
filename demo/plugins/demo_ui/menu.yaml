@@ -29,4 +29,3 @@ menu_items:
 
   # ── Administration ────────────────────────────────────────────────────────
   users:  { label: Users,         icon: users,     parent: administration, order: 10, action: stack_push, panel: user_list }
-  config: { label: Configuration, icon: settings,  parent: administration, order: 90, action: stack_push, panel: config_list }
