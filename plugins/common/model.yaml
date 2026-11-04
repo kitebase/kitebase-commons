@@ -18,7 +18,7 @@ types:
     base: Integer
     primary_key: True
     autoincrement: True
-    label: "Unique Identifier"
+    label: "ID"
     help: |
       The primary key for the table
 
@@ -26,7 +26,7 @@ types:
     base: String
     length: 32
     primary_key: True
-    label: "Unique Identifier"
+    label: "ID"
     help: |
       The primary key for the table
 

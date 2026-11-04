@@ -36,6 +36,5 @@ register_translations('it', {
     'Last Login': 'Ultimo accesso',
     'Password': 'Password',
     'Timestamp': 'Data e ora',
-    'Unique Identifier': 'Identificativo univoco',
     'Username': 'Nome utente',
 })
