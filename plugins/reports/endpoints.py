@@ -48,8 +48,8 @@ from kitebase.apptime import today
 from kitebase.db import BaseApp
 from kitebase import access
 from kitebase.endpoints import FileResult, endpoint
-from kitebase.i18n import _, _f, translate_labels
-from kitebase.pages import strip_meta
+from kitebase.i18n import _, _f
+from kitebase.outbound import to_client
 
 from reports import registry
 from reports.context import LayeredLoader, PublicResolver, plugin_layers, public_roots
@@ -302,7 +302,7 @@ def print_menu(data: Dict[str, Any]) -> Dict[str, Any]:
     return {'status': 'success', 'data': {
         'action': 'form',
         'title': _(report.title),
-        'view': translate_labels(strip_meta(view)),
+        'view': to_client(view),
         'values': values,
         'then': {'action': 'download', 'op': 'reports.run',
                  'params': {'report': report.name, 'ids': ids}},
