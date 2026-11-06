@@ -106,6 +106,9 @@ types:
     media: image
     accept: [jpg, jpeg, png, webp, gif]
     max_size: 10MB
+    help_how: >
+      One picture per field: drag it in or choose it, and it is kept when you save
+      the form. A very large photo can be reduced before it is sent.
     # The longest side the browser reduces a photo to before sending it.
     resize: 2048
 
@@ -115,6 +118,7 @@ types:
     length: 255
     media: file
     max_size: 20MB
+    help_how: One file per field. Drag it in or choose it, and it is kept when you save the form.
 
   # A folder of files, found on disk: computed from the record, never stored,
   # so its root needs a layout of the record alone (by_record).
@@ -124,6 +128,10 @@ types:
     virtual: true
     editable: false
     max_size: 20MB
+    help_how: >
+      The files of this record, one per row, each with its description. Every gesture
+      counts at once, without saving the form, and what you remove goes to the bin. A
+      new record must be saved before its first file.
 
   Json:
     base: JSON
