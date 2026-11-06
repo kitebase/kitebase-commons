@@ -19,16 +19,14 @@ types:
     primary_key: True
     autoincrement: True
     label: "ID"
-    help: |
-      The primary key for the table
+    doc: The primary key for the table.
 
   ShortID:
     base: String
     length: 32
     primary_key: True
     label: "ID"
-    help: |
-      The primary key for the table
+    doc: The primary key for the table.
 
   # A chain, one decision per link: `ShortStr` fixes a width, `Code` adds the
   # index, `UpperStr` the case. A column then names the combination it wants
