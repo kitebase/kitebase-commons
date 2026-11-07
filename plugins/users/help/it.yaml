@@ -1,0 +1,11 @@
+# Translations of the guide, kept in step with the English by `kitebase sync-help`.
+# Translate the value under the language; an empty one shows the English.
+# `en_old` is the English the translation was made on: review it, then remove the line.
+
+tables.User:
+  en: The people who can sign in, with the roles that say what each one can do.
+  it: ''
+
+pages.user_form.content.layout.sections.pages.account.layout.account_main.columns.identity.fields.password:
+  en: Leave it empty to keep the current one. A new user needs one.
+  it: ''

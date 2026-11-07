@@ -157,14 +157,15 @@ types:
     widget: color
     length: 7
     label: "Color"
-    help: "Hex color code (e.g., #FF5733)"
+    doc: "Stored as a hex code, like #FF5733."
+    help_how: "Pick the color, or type its code, like #FF5733."
 
   FilePath:
     base: String
     widget: filepath
     length: 512
     label: "File Path"
-    help: "Path to uploaded file or resource"
+    doc: "Path to an uploaded file or a resource."
 
   Money:
     base: Numeric
@@ -273,7 +274,7 @@ types:
         unique: true
         nullable: false
         label: "Username"
-        help: "Unique login username"
+        help: "The name used to sign in. No two users can have the same."
       - name: password
         type: Password
         label: "Password"

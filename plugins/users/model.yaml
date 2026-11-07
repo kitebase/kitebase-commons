@@ -14,8 +14,7 @@ tables:
   User:
     name: users
     label: "User"
-    help: |
-      The user table contains the user information
+    help: The people who can sign in, with the roles that say what each one can do.
     tags: [anag]
     mixins: [TimeStamp, Credentials]
     columns:

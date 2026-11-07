@@ -1,0 +1,31 @@
+# Translations of the guide, kept in step with the English by `kitebase sync-help`.
+# Translate the value under the language; an empty one shows the English.
+# `en_old` is the English the translation was made on: review it, then remove the line.
+
+types.Password:
+  en: Please insert a robust password and keep it safe
+  it: ''
+
+types.Image.help_how:
+  en: 'One picture per field: drag it in or choose it, and it is kept when you save the form. A very large photo can be reduced before it is sent.'
+  it: ''
+
+types.File.help_how:
+  en: One file per field. Drag it in or choose it, and it is kept when you save the form.
+  it: ''
+
+types.Files.help_how:
+  en: The files of this record, one per row, each with its description. Every gesture counts at once, without saving the form, and what you remove goes to the bin. A new record must be saved before its first file.
+  it: ''
+
+types.Color.help_how:
+  en: 'Pick the color, or type its code, like #FF5733.'
+  it: ''
+
+types.Credentials.columns.username:
+  en: The name used to sign in. No two users can have the same.
+  it: ''
+
+types.Credentials.columns.password:
+  en: Please insert a robust password and keep it safe
+  it: ''

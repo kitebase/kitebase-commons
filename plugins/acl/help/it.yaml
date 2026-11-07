@@ -1,0 +1,11 @@
+# Translations of the guide, kept in step with the English by `kitebase sync-help`.
+# Translate the value under the language; an empty one shows the English.
+# `en_old` is the English the translation was made on: review it, then remove the line.
+
+pages.user_form.content.layout.sections.pages.roles.layout.roles_main.columns.roles_pick.fields.roles:
+  en: A role brings the roles it implies, shown checked and greyed.
+  it: ''
+
+pages.user_form.content.layout.sections.pages.access.layout.access_main.columns.access_matrix.fields.acl_exceptions:
+  en: The roles give the cells; a click forces one for this user alone, granted (+) or denied (-). A denial wins over the roles.
+  it: ''
