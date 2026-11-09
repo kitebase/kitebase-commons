@@ -9,7 +9,7 @@ unchanged ask nothing; the row being updated is not its own duplicate.
 The rule runs through `flow.judge`, as the db endpoint runs it, on a model
 written here: the plugin's rule, without building an application.
 
-    (cd commons/demo && uv run pytest -q ../plugins/partners/tests)
+    (cd server && uv run pytest -q ../commons/plugins/partners/tests)
 """
 import importlib.util
 from pathlib import Path
