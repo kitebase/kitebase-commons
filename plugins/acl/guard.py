@@ -401,18 +401,22 @@ def unreadable_pages(app: Any, holds: Callable[[str], bool]) -> List[Dict[str, A
     """
     The pages whoever `holds` the given permissions opens, but whose query
     reads a table they cannot: each with what it reads and what would cover it.
-    Asked for every role by `check`, and for one user by the user form.
+    Asked for every role by `check`, and for one user by the user form. The page
+    is judged as `get_page` would send it to them, what they cannot use taken out.
     """
-    from kitebase.pages import load_page, page_permissions
+    from kitebase.pages import load_page, page_permissions, restrict_page
 
     problems = []
     for page_id, raw in _items(app.pm.data.get('pages') or {}):
         if not all(holds(n) for n in page_permissions(app, page_id) or []):
             continue
         try:
-            refs = _page_references(app, load_page(app, page_id))
+            page = load_page(app, page_id)
         except ValueError:
             continue    # a broken page is reported by the core's checks
+        with access.holding(holds):
+            restrict_page(app, page)
+        refs = _page_references(app, page)
         for table, column in sorted(refs, key=str):
             if holds(f'{table}.read'):
                 continue
