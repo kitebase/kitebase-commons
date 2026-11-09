@@ -113,6 +113,34 @@ individuals have none at all, and duplicates legitimately exist until someone
 unifies them. Both are indexed, and they are what a duplicate warning is built
 on.
 
+The warning is a rule of the table (`rules.py`), so it holds for the form, the
+API and an import alike. A code another partner already holds is a question,
+"VAT number IT001 is already held by Riverside Hardware", that the person
+answers with *Save all the same* or *Do not save*; an archived holder is said to
+be archived, since it is the one nobody finds in the list. An empty code is
+never compared, and an update that leaves the code as it was asks nothing.
+
+Whether a code is required is not decided here: it depends on the country, on
+the kind of subject and on its roles. An application, or a plugin that knows
+the country, writes it as a rule of its own, with the gravity it wants:
+`ctx.confirm` asks and lets the save go on, `ctx.stay` refuses. For instance,
+in a plugin of the application (an example, not shipped):
+
+```python
+from kitebase.flow import on_write
+
+@on_write('Partner')
+def customer_needs_vat(ctx):
+    r = ctx.record
+    if ctx.mode == 'delete' or 'C' not in (r.get('roles') or []):
+        return
+    if r.get('kind') == 'organization' and not r.get('vat_number'):
+        if not ctx.confirm('customer_without_vat',
+                           'A customer organization without a VAT number.',
+                           yes='Save all the same', no='Do not save'):
+            ctx.stay('Not saved')
+```
+
 ## Deliberately not here
 
 **No registry-wide `code`.** A subject holds several roles at once, so one

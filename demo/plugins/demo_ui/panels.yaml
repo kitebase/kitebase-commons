@@ -39,6 +39,13 @@ views:
           scope: global
           key: a
           endpoint: archivable
+        # Give or take away a role, on the row or the ticked ones: the server
+        # answers with the menu of what applies (partners/endpoints.py).
+        - id: roles
+          label: Roles
+          scope: global
+          key: r
+          endpoint: partner_roles_menu
         # The reports of Partner, offered by the server: a menu when there are
         # several, the print dialog when there is one. `rows: view` sends the
         # rows on screen, which a report prints when none is ticked.

@@ -154,10 +154,10 @@ tables:
         type: Markdown
         label: "Notes"
 
-  # The application declares its roles in `data:` and they are reconciled at
-  # startup: reconciliation writes only the declared keys, and never deletes a
-  # row — a dropped row would leave its code inside the `roles` of existing
-  # partners with nothing left to name it.
+  # The application writes its roles: today a seed of its own at startup (the
+  # demo's kite.py), since a plugin cannot yet ship the rows of its tables.
+  # A role is never deleted once used: a dropped row would leave its code
+  # inside the `roles` of existing partners with nothing left to name it.
   PartnerRole:
     name: partner_roles
     label: "Partner role"
@@ -177,10 +177,9 @@ tables:
         type: Description
         label: "Label"
 
-      # Never declared in a plugin's `data:` — numbers picked by two plugins
-      # collide with nothing to arbitrate them. A declaration carries the
-      # position instead (`$after` / `$before`), and a reordering made from the
-      # UI is never overwritten.
+      # Set by the installation, from the UI: numbers picked by two plugins
+      # would collide with nothing to arbitrate them, and a reordering made
+      # from the UI must never be overwritten.
       - name: sequence
         type: Integer
         label: "Sequence"
