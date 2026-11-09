@@ -1,0 +1,7 @@
+name: tags
+version: 0.0.1
+description: Free labels on any table, from a vocabulary the users grow
+license: MIT
+author: "Claudio Driussi"
+url: https://claudiodriussi.it
+depends_on: [common]

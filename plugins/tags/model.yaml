@@ -1,0 +1,33 @@
+# Tags: labels that only classify and filter. Nothing computes on them; a set of
+# values something computes on is a CodeSet, or a column of its own.
+#
+# A table gets tags with a vocabulary and a junction, written out (README.md):
+# the vocabulary takes this mixin, the junction declares `field: true` on the
+# end of the tagged table.
+
+types:
+
+  TagVocabulary:
+    label: "Tag"
+    columns:
+      - name: id
+        type: ID
+
+      # As the first person who wrote it spelled it. Peach and peach are one tag:
+      # `name_key` says so.
+      - name: name
+        type: String
+        length: 60
+        nullable: false
+        label: "Name"
+
+      # The name folded for comparison: case and spacing do not make a new tag.
+      # Filled by the mixin on every write through the ORM, so a form never
+      # sends it; nullable only for that reason, the mixin never leaves it empty.
+      - name: name_key
+        type: String
+        length: 60
+        nullable: true
+        unique: true
+        editable: false
+        hidden: true
