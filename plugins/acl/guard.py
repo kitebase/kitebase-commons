@@ -259,6 +259,11 @@ class RoleGuard(access.Guard):
 
     # ── check: what is left to cover before production ─────────────────────
 
+    def subjects(self, app: Any) -> Dict[str, Callable[[str], bool]]:
+        """The roles, each with what it grants, `implies` included."""
+        return {code: (lambda p, ps=permissions: granted(p, ps))
+                for code, permissions in self.roles.items()}
+
     def diagnose(self, app: Any) -> List[Dict[str, Any]]:
         from kitebase.diagnostics import make_issue
         from kitebase.endpoints import _ACCESS, _ENDPOINTS
@@ -329,8 +334,8 @@ class RoleGuard(access.Guard):
         from kitebase.diagnostics import make_issue
 
         issues = []
-        for code, permissions in self.roles.items():
-            for problem in unreadable_pages(app, lambda p, ps=permissions: granted(p, ps)):
+        for code, holds in self.subjects(app).items():
+            for problem in unreadable_pages(app, holds):
                 issues.append(make_issue(
                     'warning', 'acl-page-unreadable', f"pages.{problem['page']}",
                     f"role '{code}' opens it but cannot read {problem['what']}: its "
