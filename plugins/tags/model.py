@@ -55,6 +55,8 @@ def _keep_the_key(mapper, connection, target):
 class TagNames:
     """Resolver of the RefSets whose target is a tag vocabulary (kitebase.refsets)."""
 
+    creates = True      # a name the vocabulary lacks becomes a tag
+
     @staticmethod
     def applies_to(target_class):
         return issubclass(target_class, TagVocabulary)
