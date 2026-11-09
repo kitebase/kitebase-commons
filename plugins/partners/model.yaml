@@ -16,7 +16,7 @@ tables:
     label: "Partner"
     help: |
       Any subject the company deals with. Roles (customer, supplier, member…)
-      are held in `roles` as a delimited set, so one subject can be several
+      are held in `roles` as a set of codes, so one subject can be several
       things at once without being entered twice.
     tags: [master]
     mixins: [TimeStamp, Archivable]
@@ -71,15 +71,17 @@ tables:
         label: "Gender"
         help: "M male, F female, O other, N not declared"
 
-      # A delimited set of role codes: ",C,S,". The delimiters are not
-      # decoration — ",C," can never match ",CO,", where packed characters would
-      # let "C" match inside "CS" and break every filter, silently.
+      # The codes of the roles held, rows of PartnerRole: a list here and on
+      # the wire, stored as ",C,S," (ShortSet, a CodeSet). A view filters on one with
+      # `roles: [has, C]`, which never matches inside ",CO,". The form and the
+      # filters pick the codes from `partner_roles`, in PartnerRole's order.
       #
       # Not indexed: a LIKE with a leading wildcard would not use the index.
       - name: roles
-        type: String
-        length: 255
+        type: ShortSet
         label: "Roles"
+        choices_endpoint: partner_roles
+        validate: partner_roles
 
       # Parent subject, for rows that hang off another one: a contact person, a
       # delivery address, a billing address. Qualified by `usage` below.

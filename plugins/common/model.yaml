@@ -11,6 +11,24 @@
 #
 # It is a vocabulary, not a constraint: what does not fit is derived, not
 # argued with.
+#
+# What a `base:` can name, at the bottom of every chain:
+#
+#   SQLAlchemy's own (any type of sqlalchemy.types; these are the usual ones)
+#     String     text of a declared `length`
+#     Text       text with no length
+#     Integer    whole number; BigInteger for wider ones
+#     Numeric    exact decimal, `precision` and `scale`; Float when inexact will do
+#     Boolean    true or false
+#     Date, DateTime, Time
+#     JSON       a structure, stored as is; nothing can be filtered on it
+#
+#   The core's own
+#     CodeSet    a set of codes: a list in Python and on the wire, stored as
+#                ",C,S,"; queried with `has` (ShortSet below)
+#
+# A `case:` on a String (upper, lower) is not a type of its own: the core turns
+# it into its CaseString when the model is generated (UpperStr below).
 
 types:
 
@@ -66,6 +84,13 @@ types:
   UpperCode:
     base: UpperStr
     index: True
+
+  # A set of short codes from a vocabulary: a list in Python and on the wire,
+  # ",C,S," in the database (the core's CodeSet). Room for a few dozen codes;
+  # the column names where they come from with `choices_endpoint`.
+  ShortSet:
+    base: CodeSet
+    length: 255
 
   # Not nullable by its own definition: this is the type of what a record cannot
   # be without — say `Description` and the column is required without saying so.

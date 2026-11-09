@@ -69,9 +69,8 @@ pages:
       source:
         model: Partner
         order_by: [name]
-        # Delimiters included on both sides: ",C," can never match ",CO,".
-        domain: [{roles: [like, "%,C,%"]}]
-        defaults: {roles: ",C,"}
+        domain: [{roles: [has, C]}]
+        defaults: {roles: [C]}
 
   supplier_list:
     title: Suppliers
@@ -80,8 +79,8 @@ pages:
       source:
         model: Partner
         order_by: [name]
-        domain: [{roles: [like, "%,S,%"]}]
-        defaults: {roles: ",S,"}
+        domain: [{roles: [has, S]}]
+        defaults: {roles: [S]}
 
   # ── What the application adds to the form the plugin wrote ───────────────
   #    Everything here is a merge: `partners` declares `partner_form` and this

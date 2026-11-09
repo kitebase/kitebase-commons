@@ -29,8 +29,8 @@ pages:
 
         # Who the subject is, and the codes that identify it. `kind` is a closed
         # set owned by the code, so its choices are written here instead of
-        # being looked up; `roles` stays a plain field until the set widget
-        # exists, and shows the stored ",C,S," as it is.
+        # being looked up; the roles are rows of PartnerRole, and the column
+        # says where to fetch them.
         - id: identity
           type: section
           columns:

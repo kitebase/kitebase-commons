@@ -21,8 +21,8 @@ customer_list:
   content:
     source:
       model: Partner
-      domain: [{roles: [like, "%,C,%"]}]   # delimiters on both sides
-      defaults: {roles: ",C,"}             # a record added here is born a customer
+      domain: [{roles: [has, C]}]   # holds the role C
+      defaults: {roles: [C]}        # a record added here is born a customer
 ```
 
 **Plus one unfiltered view.** The role views hide whoever does not hold the
@@ -49,14 +49,15 @@ in SQL.
 > belonging to one role would stop the records of every other role from being
 > created at all.
 
-## Roles as a delimited set
+## Roles as a set of codes
 
-`Partner.roles` holds `",C,S,"` — codes wrapped in delimiters, never packed
-characters.
-
-The delimiters are the whole point: `",C,"` can never match `",CO,"`. Packed,
-the first two-character code added would make `"C"` match inside `"CS"` and
-break every existing filter without a word of warning.
+`Partner.roles` is a `ShortSet`, common's type on the core's `CodeSet`: a list
+of codes, `["C", "S"]`, in Python and on the wire, stored as `",C,S,"`. A view
+filters on one with `has`, which can never match `C` inside `CO`. The column names where its codes come from
+(`choices_endpoint: partner_roles`, the rows of `PartnerRole` in their order):
+the form picks them from a popup with a check per role and shows the codes
+alone, and the filters of a list ask "has any of" with the same popup. A code
+that is not one of those rows is refused on save.
 
 A set rather than one column per role, because a new role must be a row in
 `PartnerRole` and not an ALTER on a table every application shares. A set rather

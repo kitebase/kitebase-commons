@@ -55,7 +55,7 @@ def seed(app, model):
             ))
 
         # The role codes belong to the application: the Customers and Suppliers
-        # views filter on ",C," and ",S," and stamp them on what is added there.
+        # views filter on C and S and stamp them on what is added there.
         if not session.query(model.PartnerRole).first():
             session.add_all([
                 model.PartnerRole(id="C", label="Customer", sequence=10),
@@ -64,13 +64,13 @@ def seed(app, model):
 
         if not session.query(model.Partner).first():
             session.add_all([
-                model.Partner(kind="person", name="Smith, John", roles=",C,",
+                model.Partner(kind="person", name="Smith, John", roles=["C"],
                               city="Bristol", email="john@example.com"),
                 model.Partner(kind="organization", name="Riverside Hardware Ltd",
-                              roles=",S,", city="Leeds"),
+                              roles=["S"], city="Leeds"),
                 # Both at once — the case that makes one table worth having.
                 model.Partner(kind="organization", name="Northwind Trading",
-                              roles=",C,S,", city="Hull"),
+                              roles=["C", "S"], city="Hull"),
                 # No role yet: reachable only from the unfiltered list, which is
                 # where a subject is promoted to customer or supplier.
                 model.Partner(kind="person", name="Doe, Jane", city="York"),
