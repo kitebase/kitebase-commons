@@ -191,7 +191,6 @@ def app(tmp_path_factory):
     try:
         pm = kitebase.plugins.PluginsManager()
         pm.load_config('config.yaml')
-        kitebase.utils.register_standard_handlers(pm)
         pm.load_plugins()
         db = kitebase.utils.get_app()
         db.calc_db(pm)
