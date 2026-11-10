@@ -11,7 +11,7 @@ Setting another user's password is not here: the user form does it, for who
 can edit users (pages.yaml).
 """
 import kitebase.utils
-from kitebase.db import BaseApp
+import kitebase.context
 from kitebase.endpoint_db import write_values
 from kitebase import access
 from kitebase.endpoints import endpoint
@@ -30,7 +30,7 @@ def password_form(data):
 @endpoint('change_password', access=access.AUTHENTICATED)
 def change_password(data):
     """Set the caller's password. Field errors come back per field."""
-    user_id = (BaseApp.get_context() or {}).get('id')
+    user_id = (kitebase.context.current() or {}).get('id')
     if not user_id:
         return {'status': 'error', 'code': 401, 'message': _('Not logged in')}
 

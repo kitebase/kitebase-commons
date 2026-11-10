@@ -21,7 +21,7 @@ from andrep.adapters import VALUE
 from andrep.adapters.sqlalchemy import SQLAlchemyView
 from andrep.resources import DefaultResolver
 
-from kitebase.db import Base
+from kitebase.model_base import Base
 from kitebase.utils import table_definition
 
 TEMPLATES = 'andrep'           # the folder of a plugin holding its templates

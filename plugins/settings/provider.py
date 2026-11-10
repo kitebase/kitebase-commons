@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import kitebase.defaults
 import kitebase.utils
 from kitebase import settings as port
-from kitebase.db import BaseApp
+import kitebase.context
 from kitebase.diagnostics import make_issue
 from kitebase.i18n import _
 from kitebase.sections import register_section
@@ -135,7 +135,7 @@ def write(app: Any, values: Dict[str, Any], reset: List[str] = ()) -> None:
     catalog again. The values are already coerced."""
     entries = catalog(app)
     model = _model(app)
-    user = (BaseApp.get_context() or {}).get('id')
+    user = (kitebase.context.current() or {}).get('id')
     with app.get_session() as session:
         for key in reset:
             row = session.get(model, key)

@@ -45,7 +45,7 @@ from typing import Any, Dict, Iterator, List
 
 import kitebase.utils
 from kitebase.apptime import today
-from kitebase.db import BaseApp
+import kitebase.context
 from kitebase import access
 from kitebase.endpoints import FileResult, endpoint
 from kitebase.i18n import _, _f
@@ -150,7 +150,7 @@ def run(data: Dict[str, Any]) -> Any:
     # the template, which tells whoever holds the paper how it was printed.
     r.name = header_lines(app.pm.config)
     r.template_name = template
-    user = (BaseApp.get_context() or {}).get('username')
+    user = (kitebase.context.current() or {}).get('username')
     if user:
         r.report_user = user
     locale = app.pm.config.get('locale')
