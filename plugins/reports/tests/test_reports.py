@@ -576,9 +576,9 @@ class Denying(access.Guard):
 @pytest.fixture
 def denied():
     def deny(*permissions):
-        access._GUARD = Denying(permissions)
+        access.GUARD.set(Denying(permissions), replace=True)
     yield deny
-    access._GUARD = access.OPEN
+    access.GUARD.reset()
 
 
 def test_a_table_the_user_cannot_read_stops_the_print(app, denied):
