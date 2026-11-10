@@ -22,6 +22,7 @@ from kitebase import access
 from kitebase.access import AccessDenied
 from kitebase.endpoint_db import handle_update
 from kitebase.endpoints import endpoint
+from kitebase.errors import Refusal
 from kitebase.i18n import _, _f
 from kitebase.transforms import register_validator
 
@@ -128,6 +129,8 @@ def partner_roles_change(data):
         except AccessDenied:
             stopped.append(_f('{name}: not allowed', name=name))
             continue
+        except Refusal as e:
+            result = {'status': 'error', 'message': e.message, 'data': e.data}
         if result.get('status') == 'success':
             touched.append(record_id)
         else:
