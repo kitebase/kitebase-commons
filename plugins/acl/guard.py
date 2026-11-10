@@ -202,13 +202,13 @@ class RoleGuard(access.Guard):
 
     def bind(self, app: Any) -> None:
         self.roles, self.every_row, self.conditional = resolve_rules(
-            app.pm.data.get('roles') or {})
+            app.plugins.data.get('roles') or {})
         for role, conditions in self.conditional.items():
             for permission in conditions:
                 if permission.split('.')[0] not in app.tables:
                     raise ValueError(f"Role '{role}': '{permission}' has a condition, "
                                      f"and no table is called {permission.split('.')[0]}")
-        self.endpoints = (app.pm.config.get('acl') or {}).get('endpoints') or {}
+        self.endpoints = (app.plugins.config.get('acl') or {}).get('endpoints') or {}
         self._cache = {}
 
     def permissions(self, codes: Iterable[str]) -> FrozenSet[str]:
@@ -269,7 +269,7 @@ class RoleGuard(access.Guard):
         from kitebase.endpoints import _ACCESS, _ENDPOINTS
 
         issues: List[Dict[str, Any]] = []
-        declared = dict(_items(app.pm.data.get('roles') or {}))
+        declared = dict(_items(app.plugins.data.get('roles') or {}))
         known = _known_permissions(app, _ACCESS)
 
         for code, definition in declared.items():
@@ -306,7 +306,7 @@ class RoleGuard(access.Guard):
         from kitebase.diagnostics import make_issue
         from kitebase.server_utils import context_fields
 
-        fields = set(context_fields(app.pm.config.get('authentication') or {}, default=['id']))
+        fields = set(context_fields(app.plugins.config.get('authentication') or {}, default=['id']))
         issues: List[Dict[str, Any]] = []
         for code, definition in declared.items():
             plugin = (definition or {}).get('$plugin')
@@ -412,7 +412,7 @@ def unreadable_pages(app: Any, holds: Callable[[str], bool]) -> List[Dict[str, A
     from kitebase.pages import load_page, page_permissions, restrict_page
 
     problems = []
-    for page_id, raw in _items(app.pm.data.get('pages') or {}):
+    for page_id, raw in _items(app.plugins.data.get('pages') or {}):
         if not all(holds(n) for n in page_permissions(app, page_id) or []):
             continue
         try:
@@ -475,7 +475,7 @@ def _known_permissions(app: Any, endpoint_access: Dict[str, Any]) -> Set[str]:
     known = {f'{t}.{a}' for t in app.tables for a in access.TABLE_ACTIONS}
     known.update(f'{g}.{a}' for table in app.tables.values()
                  for g in table.column_groups.values() for a in access.COLUMN_ACTIONS)
-    known.update(k for k, _ in _items(app.pm.data.get('permissions') or {}))
+    known.update(k for k, _ in _items(app.plugins.data.get('permissions') or {}))
     known.update(v for v in endpoint_access.values()
                  if isinstance(v, str) and not v.startswith('$'))
 
@@ -489,7 +489,7 @@ def _known_permissions(app: Any, endpoint_access: Dict[str, Any]) -> Set[str]:
                 walk(value)
 
     for section in ('pages', 'views', 'menu_items'):
-        walk(app.pm.data.get(section))
+        walk(app.plugins.data.get(section))
     return known
 
 

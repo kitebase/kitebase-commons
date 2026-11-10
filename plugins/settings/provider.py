@@ -40,7 +40,7 @@ def _items(mapping: Dict[str, Any]):
 def catalog(app: Any) -> Dict[str, Dict[str, Any]]:
     """Every declared setting by key, in the order of the YAML."""
     out: Dict[str, Dict[str, Any]] = {}
-    for group, definition in _items(app.pm.data.get(ROOT)):
+    for group, definition in _items(app.plugins.data.get(ROOT)):
         if not isinstance(definition, dict):
             continue
         for item in definition.get('items') or []:
@@ -54,7 +54,7 @@ def catalog(app: Any) -> Dict[str, Dict[str, Any]]:
 
 def groups(app: Any) -> Dict[str, Dict[str, Any]]:
     """The groups, with their label and help."""
-    return {g: d for g, d in _items(app.pm.data.get(ROOT)) if isinstance(d, dict)}
+    return {g: d for g, d in _items(app.plugins.data.get(ROOT)) if isinstance(d, dict)}
 
 
 # ── Types ─────────────────────────────────────────────────────────────────────

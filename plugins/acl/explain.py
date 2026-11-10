@@ -47,7 +47,7 @@ def _role(code: str, declared: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def role_detail(app: Any, code: str) -> List[Dict[str, Any]]:
-    declared = dict(_items(app.pm.data.get(ROOT) or {}))
+    declared = dict(_items(app.plugins.data.get(ROOT) or {}))
     if code not in declared:
         raise KeyError(code)
     closure = _closure(declared, code)
@@ -92,7 +92,7 @@ def role_detail(app: Any, code: str) -> List[Dict[str, Any]]:
                   *(cell(f'{t}.{a}') for a in access.TABLE_ACTIONS)] for t in names],
     })
 
-    labels = dict(_items(app.pm.data.get('permissions') or {}))
+    labels = dict(_items(app.plugins.data.get('permissions') or {}))
     table_codes = {f'{t}.{a}' for t in app.tables for a in access.TABLE_ACTIONS}
     others = sorted(_known_permissions(app, _ACCESS) - table_codes)
     blocks.append({
@@ -105,7 +105,7 @@ def role_detail(app: Any, code: str) -> List[Dict[str, Any]]:
 
     from kitebase.pages import page_permissions
     holds = lambda p: granted(p, held)  # noqa: E731
-    opens = [pid for pid, _ in _items(app.pm.data.get('pages') or {})
+    opens = [pid for pid, _ in _items(app.plugins.data.get('pages') or {})
              if all(holds(p) for p in page_permissions(app, pid) or [])]
     blocks.append({
         'title': 'Pages it opens',

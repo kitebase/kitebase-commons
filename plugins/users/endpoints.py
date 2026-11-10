@@ -40,7 +40,7 @@ def change_password(data):
     confirm = values.get('confirm') or ''
 
     app = kitebase.utils.get_app()
-    auth = app.pm.config.get('authentication', {})
+    auth = app.plugins.config.get('authentication', {})
     table = auth.get('user_table', 'User')
     field = auth.get('password_field', 'password')
 

@@ -218,12 +218,12 @@ def app(tmp_path_factory):
 
 def run(app, **data):
     """reports.run through the download route: a FileResult, or the error dict."""
-    return handle_download(app.cp, 'reports.run', data, {'username': 'tester', 'id': 1})
+    return handle_download(app.dispatcher, 'reports.run', data, {'username': 'tester', 'id': 1})
 
 
 def press_print(app, **data):
     """reports.print through the dispatcher: the body the client applies."""
-    return handle_generic_endpoint(app.cp, 'reports.print', data, {'username': 'tester', 'id': 1})
+    return handle_generic_endpoint(app.dispatcher, 'reports.print', data, {'username': 'tester', 'id': 1})
 
 
 def rows(result):
@@ -324,7 +324,7 @@ def test_the_variants_are_the_files_with_the_report_prefix(app):
     from reports.endpoints import variants
     from reports import registry
 
-    loader = LayeredLoader(plugin_layers(app.pm))
+    loader = LayeredLoader(plugin_layers(app.plugins))
     assert variants(registry.get('shop.customers'), loader) == [
         'customers', 'customers_headed', 'customers_landscape', 'customers_store',
         'customers_wide', 'shop.customers_short']
@@ -375,7 +375,7 @@ def test_a_template_outside_the_report_is_refused(app, template):
 def test_the_loader_refuses_names_that_are_not_file_names(app, name):
     from reports.context import LayeredLoader, plugin_layers
     with pytest.raises(ValueError):
-        LayeredLoader(plugin_layers(app.pm)).load(name)
+        LayeredLoader(plugin_layers(app.plugins)).load(name)
 
 
 # ── Resources ─────────────────────────────────────────────────────────────────

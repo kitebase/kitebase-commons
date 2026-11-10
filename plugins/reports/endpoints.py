@@ -134,7 +134,7 @@ def run(data: Dict[str, Any]) -> Any:
             raise _denied(report, permission)
 
     app = kitebase.utils.get_app()
-    loader = LayeredLoader(plugin_layers(app.pm))
+    loader = LayeredLoader(plugin_layers(app.plugins))
     known = variants(report, loader)
     template = data.get('template') or (
         report.short_name if report.short_name in known else (known[0] if known else None))
@@ -142,18 +142,18 @@ def run(data: Dict[str, Any]) -> Any:
         return _refuse(_f("'{template}' is not a template of report '{report}'",
                           template=template, report=report.name))
 
-    r = report.renderer(template, loader=loader, resolver=PublicResolver(public_roots(app.pm)))
+    r = report.renderer(template, loader=loader, resolver=PublicResolver(public_roots(app.plugins)))
     if data.get('title'):
         r.title = str(data['title'])
     # What the standard header prints beside title, date and page: the lines
     # of `reports.header` in config.yaml (AndRep's `_r.name`), and the name of
     # the template, which tells whoever holds the paper how it was printed.
-    r.name = header_lines(app.pm.config)
+    r.name = header_lines(app.plugins.config)
     r.template_name = template
     user = (kitebase.context.current() or {}).get('username')
     if user:
         r.report_user = user
-    locale = app.pm.config.get('locale')
+    locale = app.plugins.config.get('locale')
     if locale and not r.page.get('locale'):
         r.locale = locale
 
@@ -232,18 +232,18 @@ def print_form(app, report: registry.Report, templates: List[str],
     Raises ValueError when the report's options form is missing or uses a
     reserved name.
     """
-    view = copy.deepcopy(app.pm.resolve_refs(app.pm.get('views.reports_print_form')))
+    view = copy.deepcopy(app.plugins.resolve_refs(app.plugins.get('views.reports_print_form')))
     for field in _fields(view['layout']):
         if field['name'] == 'template':
             field['choices'] = [{'value': t, 'label': template_label(loader, t)}
                                 for t in templates]
 
     if report.options:
-        options = app.pm.get(f'views.{report.options}')
+        options = app.plugins.get(f'views.{report.options}')
         if options is None:
             raise ValueError(_f("The options form '{form}' of report '{report}' does not exist",
                                 form=report.options, report=report.name))
-        options = copy.deepcopy(app.pm.resolve_refs(options))
+        options = copy.deepcopy(app.plugins.resolve_refs(options))
         for field in _fields(options.get('layout') or []):
             if field['name'] in RESERVED:
                 raise ValueError(_f("The option '{name}' of report '{report}' uses a reserved name",
@@ -284,7 +284,7 @@ def print_menu(data: Dict[str, Any]) -> Dict[str, Any]:
         return _refuse(_('No rows to print'))
 
     app = kitebase.utils.get_app()
-    loader = LayeredLoader(plugin_layers(app.pm))
+    loader = LayeredLoader(plugin_layers(app.plugins))
     templates = variants(report, loader)
     if not templates:
         return _refuse(_f("Report '{report}' has no template", report=report.name))

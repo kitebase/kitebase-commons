@@ -32,7 +32,7 @@ _CLASSES = {
 def policy() -> dict:
     """The rules in force: the defaults, with what config.yaml says on top."""
     try:
-        given = kitebase.utils.get_app().pm.config.get('password_policy') or {}
+        given = kitebase.utils.get_app().plugins.config.get('password_policy') or {}
     except Exception:
         given = {}
     return {**DEFAULTS, **given}

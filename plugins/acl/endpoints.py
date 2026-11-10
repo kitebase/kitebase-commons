@@ -38,7 +38,7 @@ from acl.guard import (GUARD, _covers, _exists, _items, _known_permissions, gran
 def role_catalog(app: Any) -> List[Dict[str, Any]]:
     """Every declared role, in declaration order, as the form shows it."""
     catalog = []
-    for code, definition in _items(app.pm.data.get('roles') or {}):
+    for code, definition in _items(app.plugins.data.get('roles') or {}):
         definition = definition or {}
         catalog.append({
             'value': code,
@@ -78,7 +78,7 @@ def effective(app: Any, roles: List[str], is_admin: bool = False,
               exceptions: List[str] = ()) -> Dict[str, Any]:
     """What `roles` and `exceptions` give, table by table and then permission by
     permission, with the pages that combination opens and cannot read."""
-    declared = dict(_items(app.pm.data.get('roles') or {}))
+    declared = dict(_items(app.plugins.data.get('roles') or {}))
     known = [c for c in roles if c in declared]
     labels = {c: (declared[c] or {}).get('label') or c for c in known}
     exceptions = [e for e in exceptions if len(e) > 1 and e[0] in '+-']
@@ -102,7 +102,7 @@ def effective(app: Any, roles: List[str], is_admin: bool = False,
             'actions': {a: answer(f'{name}.{a}') for a in access.TABLE_ACTIONS},
         })
 
-    declared_permissions = dict(_items(app.pm.data.get('permissions') or {}))
+    declared_permissions = dict(_items(app.plugins.data.get('permissions') or {}))
     table_codes = {f'{t}.{a}' for t in app.tables for a in access.TABLE_ACTIONS}
     others = sorted(_known_permissions(app, _ACCESS) - table_codes)
     permissions = [{'code': code,
@@ -136,7 +136,7 @@ def validate_roles(value: Any, record: Dict[str, Any]) -> Optional[str]:
     if not isinstance(value, list) or not all(isinstance(c, str) for c in value):
         return _('A list of role codes is expected, such as ["library.desk"]')
     declared = {code for code, _definition in
-                _items(kitebase.utils.get_app().pm.data.get('roles') or {})}
+                _items(kitebase.utils.get_app().plugins.data.get('roles') or {})}
     unknown = [c for c in value if c not in declared]
     if unknown:
         return _('Unknown role: {codes}').format(codes=', '.join(unknown))

@@ -93,7 +93,7 @@ def clean(app):
 
 
 def call(app, op, **data):
-    return handle_generic_endpoint(app.cp, op, data, {'username': 'tester', 'id': 7})
+    return handle_generic_endpoint(app.dispatcher, op, data, {'username': 'tester', 'id': 7})
 
 
 def by_name(result):
@@ -165,7 +165,7 @@ def test_a_value_set_back_to_the_default_is_a_decision_and_stays(app):
 def test_a_later_default_reaches_only_what_was_not_set(app):
     call(app, 'set_settings', group='shop', values={'greeting': 'Hello'})
     call(app, 'set_settings', group='shop', values={'greeting': 'Welcome'})
-    items = app.pm.data['settings']['shop']['items']
+    items = app.plugins.data['settings']['shop']['items']
     for item in items:
         if item['name'] in ('greeting', 'default_discount'):
             item['saved'] = item['default']
@@ -253,13 +253,13 @@ def test_the_application_checks_clean(app):
 
 
 def test_check_names_a_bad_catalog(app):
-    data = app.pm.data['settings']
+    data = app.plugins.data['settings']
     data['broken'] = {'items': [
         {'name': 'no_type', 'type': 'Nonsense', 'help': 'x'},
         {'name': 'bad_default', 'type': 'Percent', 'default': 'ten', 'help': 'x'},
         {'name': 'no_help', 'type': 'Integer', 'default': 1},
         {'name': 'typo', 'type': 'Integer', 'defualt': 1, 'help': 'x'}]}
-    pages = app.pm.data['pages']
+    pages = app.plugins.data['pages']
     pages['bad_page'] = {'content': {'source': {'defaults': {'x': '$setting.shop.nope'}}}}
     try:
         found = {(i['code'], i['path']) for i in run_checks(app)
