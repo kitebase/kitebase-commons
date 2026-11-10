@@ -25,7 +25,3 @@ types.Color.help_how:
 types.Credentials.columns.username:
   en: The name used to sign in. No two users can have the same.
   it: ''
-
-types.Credentials.columns.password:
-  en: Please insert a robust password and keep it safe
-  it: ''
