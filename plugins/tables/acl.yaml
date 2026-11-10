@@ -1,0 +1,5 @@
+# A permission of function: whoever holds it sees the list of the tables. What
+# each table lets them do is its own grants; the administrator passes them all.
+
+permissions:
+  tables.browse: { label: Browse every table }

@@ -1,0 +1,12 @@
+# The plugin brings the page, not its place: the application puts it in its
+# menu, usually among the administration items.
+#
+#   tables: { label: Tables, icon: table, parent: masters, action: stack_push, panel: tables_browser }
+
+pages:
+  tables_browser:
+    title: Tables
+    access: tables.browse
+    content:
+      type: plugin
+      component: tables.browser

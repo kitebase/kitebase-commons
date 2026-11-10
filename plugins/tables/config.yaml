@@ -1,0 +1,11 @@
+# Every table of the application, for maintenance: a list of the tables, each
+# opening its generated list and form. Behind the door the access control
+# applies as everywhere: `tables.browse` shows the door, the grants of each
+# table decide what opens and what can be written.
+name: tables
+version: 0.0.1
+description: Every table of the application, through its generated list and form
+license: MIT
+author: "Claudio Driussi"
+url: https://claudiodriussi.it
+depends_on: [common]
