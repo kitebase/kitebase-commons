@@ -26,6 +26,7 @@
    */
   import { _ } from '$kitebase/i18n';
   import { api } from '$kitebase/api/client';
+  import { errorText } from '$kitebase/api/envelope';
   import DataForm from '$kitebase/components/DataForm.svelte';
   import type { FormDescriptor } from '$kitebase/components/dataform.types';
 
@@ -68,7 +69,7 @@
       error = null;
     } else {
       meta = null;
-      error = res.message ?? 'Error';
+      error = errorText(res, 'Error');
     }
   }
 
@@ -105,7 +106,7 @@
     menuOpen = false;
     const res = await api.endpoint('set_settings', { group, reset: [item.name] });
     if (res.status !== 'success') {
-      error = res.message ?? 'Error';
+      error = errorText(res, 'Error');
       return;
     }
     await load(group);

@@ -41,6 +41,7 @@
    */
   import { _ } from '$kitebase/i18n';
   import { api } from '$kitebase/api/client';
+  import { errorText } from '$kitebase/api/envelope';
 
   interface Answer {
     ok: boolean;
@@ -113,7 +114,7 @@
           data = res.data as Effective;
           error = null;
         } else {
-          error = res.message ?? _('The access could not be computed');
+          error = errorText(res, _('The access could not be computed'));
         }
       } catch (e) {
         if (ticket === asked) error = e instanceof Error ? e.message : String(e);
