@@ -30,5 +30,5 @@ package = false
 
 [tool.uv.sources]
 kitebase = { path = "../../server", editable = true }
-# The workspace's checkout (tools/clone-all.sh puts it there).
+# A checkout of andrep beside kitebase, cloned into the workspace.
 andrep = { path = "../../andrep/renderer", editable = true }
