@@ -15,6 +15,7 @@ import kitebase.context
 from kitebase.endpoint_db import write_values
 from kitebase import access
 from kitebase.endpoints import endpoint
+from kitebase.errors import Invalid, NotFound, Refusal
 from kitebase.i18n import _
 from kitebase.transforms import ValidationError, verify_password
 
@@ -32,7 +33,7 @@ def change_password(data):
     """Set the caller's password. Field errors come back per field."""
     user_id = (kitebase.context.current() or {}).get('id')
     if not user_id:
-        return {'status': 'error', 'code': 401, 'message': _('Not logged in')}
+        raise Refusal(_('Not logged in'), code=401)
 
     values = data.get('data') or {}
     current = values.get('current') or ''
@@ -47,7 +48,7 @@ def change_password(data):
     with app.get_session() as session:
         user = session.get(app.models[table], user_id)
         if user is None:
-            return {'status': 'error', 'code': 404, 'message': _('Unknown user')}
+            raise NotFound(_('Unknown user'))
 
         errors = {}
         if not verify_password(current, getattr(user, field)):
@@ -72,9 +73,7 @@ def change_password(data):
                 errors['new'] = _('A new password is needed')
 
         if errors:
-            return {'status': 'error', 'code': 400,
-                    'message': _('The password was not changed'),
-                    'data': {'errors': errors}}
+            raise Invalid(_('The password was not changed'), data={'errors': errors})
 
         setattr(user, field, stored)
         session.commit()

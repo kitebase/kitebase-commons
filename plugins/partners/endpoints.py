@@ -22,7 +22,7 @@ from kitebase import access
 from kitebase.access import AccessDenied
 from kitebase.endpoint_db import handle_update
 from kitebase.endpoints import endpoint
-from kitebase.errors import Refusal
+from kitebase.errors import Invalid, Refusal
 from kitebase.i18n import _, _f
 from kitebase.transforms import register_validator
 
@@ -69,9 +69,9 @@ def partner_roles_menu(data):
     access.check_table('Partner', 'read')
     ids = _ids(data)
     if not ids:
-        return {'status': 'error', 'code': 400, 'message': _('Select a partner first')}
+        raise Invalid(_('Select a partner first'))
     if not access.can('Partner.update'):
-        return {'status': 'error', 'code': 403, 'message': _('You may not change partners')}
+        raise AccessDenied('Partner.update', _('You may not change partners'))
 
     def entry(label, code, add):
         return {'label': label,
@@ -107,7 +107,7 @@ def partner_roles_change(data):
     access.check_table('Partner', 'update')
     ids, code, add = _ids(data), data.get('role'), bool(data.get('add'))
     if not ids or not code:
-        return {'status': 'error', 'code': 400, 'message': _('A role and the partners are needed')}
+        raise Invalid(_('A role and the partners are needed'))
 
     app = kitebase.utils.get_app()
     model = app.models['Partner']

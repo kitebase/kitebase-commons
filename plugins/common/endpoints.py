@@ -15,6 +15,7 @@ without any machinery on the client's side.
 import kitebase.utils
 from kitebase import access
 from kitebase.endpoints import endpoint
+from kitebase.errors import Invalid
 from kitebase.i18n import _, _f
 from kitebase.utils import search_info, table_definition
 
@@ -25,12 +26,10 @@ def _archivable_model(data):
     table = data.get('table')
     model = app.models.get(table) if table else None
     if model is None:
-        return None, {'status': 'error', 'code': 400,
-                      'message': _f("Unknown table '{table}'", table=table)}
+        raise Invalid(_f("Unknown table '{table}'", table=table))
     if not hasattr(model, '_kb_archive_field'):
-        return None, {'status': 'error', 'code': 400,
-                      'message': _f("'{table}' is not Archivable", table=table)}
-    return model, None
+        raise Invalid(_f("'{table}' is not Archivable", table=table))
+    return model
 
 
 def _label(record, model):
@@ -42,9 +41,7 @@ def _label(record, model):
 
 @endpoint('archivable', access=access.PER_TABLE)
 def archivable(data):
-    model, error = _archivable_model(data)
-    if error:
-        return error
+    model = _archivable_model(data)
     access.check_table(data['table'], 'read')
     params = data.get('query_params') or {}
     archived = params.get('archived')
@@ -91,13 +88,11 @@ def archivable(data):
 
 
 def _flip(data, archive: bool):
-    model, error = _archivable_model(data)
-    if error:
-        return error
+    model = _archivable_model(data)
     access.check_table(data['table'], 'update')
     ids = data.get('ids') or ([data['id']] if data.get('id') is not None else [])
     if not ids:
-        return {'status': 'error', 'code': 400, 'message': _('No record given')}
+        raise Invalid(_('No record given'))
 
     app = kitebase.utils.get_app()
     touched = []

@@ -48,6 +48,7 @@ from kitebase.apptime import today
 import kitebase.context
 from kitebase import access
 from kitebase.endpoints import FileResult, endpoint
+from kitebase.errors import Invalid
 from kitebase.i18n import _, _f
 from kitebase.outbound import to_client
 
@@ -66,10 +67,6 @@ FORMATS = {
     'xlsx': ('xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
              'attachment'),
 }
-
-
-def _refuse(message: str) -> Dict[str, Any]:
-    return {'status': 'error', 'code': 400, 'message': message}
 
 
 def _cell(value: Any) -> Any:
@@ -119,15 +116,15 @@ def variants(report: registry.Report, loader: LayeredLoader):
 def run(data: Dict[str, Any]) -> Any:
     report = registry.get(data.get('report') or '')
     if report is None:
-        return _refuse(_f("Unknown report: '{report}'", report=data.get('report')))
+        raise Invalid(_f("Unknown report: '{report}'", report=data.get('report')))
     fmt = data.get('format') or 'pdf'
     if fmt not in FORMATS:
-        return _refuse(_f("Unknown report format: '{format}'", format=fmt))
+        raise Invalid(_f("Unknown report format: '{format}'", format=fmt))
     ids = data.get('ids') or []
     if not isinstance(ids, list):
-        return _refuse(_('ids must be a list'))
+        raise Invalid(_('ids must be a list'))
     if report.input == 'view' and not ids:
-        return _refuse(_('No rows to print'))
+        raise Invalid(_('No rows to print'))
     options = {k: v for k, v in data.items() if k not in RESERVED}
     for permission in access.declared(report.access):
         if not access.can(permission):
@@ -139,7 +136,7 @@ def run(data: Dict[str, Any]) -> Any:
     template = data.get('template') or (
         report.short_name if report.short_name in known else (known[0] if known else None))
     if template not in known:
-        return _refuse(_f("'{template}' is not a template of report '{report}'",
+        raise Invalid(_f("'{template}' is not a template of report '{report}'",
                           template=template, report=report.name))
 
     r = report.renderer(template, loader=loader, resolver=PublicResolver(public_roots(app.plugins)))
@@ -260,7 +257,7 @@ def print_menu(data: Dict[str, Any]) -> Dict[str, Any]:
     if data.get('report'):
         report = registry.get(data['report'])
         if report is None or report.table != table:
-            return _refuse(_f("Unknown report: '{report}'", report=data['report']))
+            raise Invalid(_f("Unknown report: '{report}'", report=data['report']))
         for permission in access.declared(report.access):
             if not access.can(permission):
                 raise _denied(report, permission)
@@ -281,17 +278,17 @@ def print_menu(data: Dict[str, Any]) -> Dict[str, Any]:
 
     ids = rows_taken(report, data)
     if report.input == 'view' and not ids:
-        return _refuse(_('No rows to print'))
+        raise Invalid(_('No rows to print'))
 
     app = kitebase.utils.get_app()
     loader = LayeredLoader(plugin_layers(app.plugins))
     templates = variants(report, loader)
     if not templates:
-        return _refuse(_f("Report '{report}' has no template", report=report.name))
+        raise Invalid(_f("Report '{report}' has no template", report=report.name))
     try:
         view = print_form(app, report, templates, loader)
     except ValueError as e:
-        return _refuse(str(e))
+        raise Invalid(str(e)) from e
 
     values = {f['name']: f['default'] for f in _fields(view['layout']) if 'default' in f}
     values.update({

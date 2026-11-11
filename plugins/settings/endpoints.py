@@ -17,6 +17,7 @@ from typing import Any, Dict, List
 
 import kitebase.utils
 from kitebase.endpoints import endpoint
+from kitebase.errors import Invalid, NotFound
 from kitebase.i18n import _
 
 from settings.provider import catalog, coerce, delete, groups, rows, write
@@ -35,9 +36,8 @@ def _text(value: Any) -> Any:
     return _(value) if isinstance(value, str) and value else value
 
 
-def _missing(name: Any) -> Dict[str, Any]:
-    return {'status': 'error', 'code': 404,
-            'message': _("No settings group '{g}'").format(g=name)}
+def _missing(name: Any) -> NotFound:
+    return NotFound(_("No settings group '{g}'").format(g=name))
 
 
 @endpoint('get_settings', access='Setting.read')
@@ -45,7 +45,7 @@ def get_settings(data):
     app, name = kitebase.utils.get_app(), data.get('group')
     definition, entries = _group(app, name)
     if definition is None:
-        return _missing(name)
+        raise _missing(name)
     found = rows(app, [e['key'] for e in entries])
     items = []
     for e in entries:
@@ -72,7 +72,7 @@ def settings_values(data):
     app, name = kitebase.utils.get_app(), data.get('group')
     definition, entries = _group(app, name)
     if definition is None:
-        return _missing(name)
+        raise _missing(name)
     return {'status': 'success', 'code': 200, 'data': _values(app, entries)}
 
 
@@ -81,7 +81,7 @@ def set_settings(data):
     app, name = kitebase.utils.get_app(), data.get('group')
     definition, entries = _group(app, name)
     if definition is None:
-        return _missing(name)
+        raise _missing(name)
     by_name = {e['name']: e for e in entries}
     # `values` from code, `data` from a form's save
     values = data.get('values') or data.get('data') or {}
@@ -99,8 +99,7 @@ def set_settings(data):
         if error:
             errors[item] = error
     if errors:
-        return {'status': 'error', 'code': 400, 'message': _('Some values are not valid'),
-                'data': {'errors': errors}}
+        raise Invalid(_('Some values are not valid'), data={'errors': errors})
     write(app, coerced, [by_name[i]['key'] for i in reset])
     return {'status': 'success', 'code': 200, 'data': _values(app, entries)}
 
