@@ -215,7 +215,7 @@ def smtp_merge_send(data):
                          n=len(refused), list='; '.join(refused[:SHOWN])))
 
     keep_log = draft.get('keep_log') is not False
-    sent, failed, dry = 0, [], 0
+    sent, failed, dry, uncopied = 0, [], 0, 0
     for (name, _message), p in zip(messages, prepared):
         try:
             result = dispatch(p, log=keep_log)
@@ -224,6 +224,7 @@ def smtp_merge_send(data):
             continue
         dry += result['status'] == 'dry_run'
         sent += result['status'] == 'sent'
+        uncopied += bool(result.get('warning'))
 
     lines = []
     if sent:
@@ -233,6 +234,9 @@ def smtp_merge_send(data):
     lines += found.notes()
     if failed:
         lines.append(_f('Failed: {list}', list='; '.join(failed[:SHOWN])))
+    if uncopied:
+        lines.append(_f('{n} messages sent without their copy in the Sent folder: see the log',
+                        n=uncopied))
     if not keep_log:
         lines.append(_('No log was kept of these messages'))
     return {'status': 'success', 'code': 200, 'data': {'sent': sent + dry, 'failed': len(failed)},

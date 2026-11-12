@@ -32,10 +32,14 @@ written to a file instead of being sent (the row's `eml`); under
 `$redirect_to` it goes to that address alone, and the row keeps both the
 recipients written and the address delivered to.
 """
+import copy
+import imaplib
+import logging
 import mimetypes
 from dataclasses import dataclass
 import smtplib
 import ssl
+import time
 from email.message import EmailMessage
 from email.utils import formataddr, formatdate, getaddresses, make_msgid, parseaddr
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -47,8 +51,13 @@ from kitebase.errors import Invalid, Unavailable
 from kitebase.i18n import _, _f
 
 from smtp import outbox
-from smtp.accounts import Account, account, choose, options
+from smtp.accounts import Account, SentFolder, account, choose, options
 from smtp.templates import complete
+
+logger = logging.getLogger(__name__)
+
+# What imaplib raises for an answer that is not OK
+IMAP_ERROR = imaplib.IMAP4.error
 
 DEFAULT_TIMEOUT = 30
 
@@ -120,6 +129,40 @@ def deliver(acct: Account, msg: EmailMessage, recipients: List[str], timeout: fl
         if acct.user:
             server.login(acct.user, acct.password or '')
         server.send_message(msg, from_addr=parseaddr(acct.sender)[1], to_addrs=recipients)
+
+
+def _mailbox(name: str) -> str:
+    """A folder name as IMAP writes it: quoted, so `Sent Items` is one name."""
+    return '"' + name.replace('\\', '\\\\').replace('"', '\\"') + '"'
+
+
+def append_sent(sent: SentFolder, msg: EmailMessage, bcc: List[str], timeout: float) -> None:
+    """Keep a copy of a sent message in the account's Sent folder, read, with
+    its Bcc, which the message that left does not carry. Raises what imaplib
+    and the network raise."""
+    kept = copy.deepcopy(msg)
+    if bcc:
+        kept['Bcc'] = ', '.join(bcc)
+    if sent.security == 'ssl':
+        server = imaplib.IMAP4_SSL(sent.host, sent.port, ssl_context=ssl.create_default_context(),
+                                   timeout=timeout)
+    else:
+        server = imaplib.IMAP4(sent.host, sent.port, timeout=timeout)
+    try:
+        if sent.security == 'starttls':
+            server.starttls(ssl_context=ssl.create_default_context())
+        if sent.user:
+            server.login(sent.user, sent.password or '')
+        status, data = server.append(_mailbox(sent.folder), '(\\Seen)',
+                                     time.time(), kept.as_bytes())
+        if status != 'OK':
+            raise IMAP_ERROR(b' '.join(d for d in data if isinstance(d, bytes)).decode(
+                'utf-8', 'replace') or status)
+    finally:
+        try:
+            server.logout()
+        except (IMAP_ERROR, OSError):
+            pass
 
 
 def _validated(message: Dict[str, Any]) -> Dict[str, Any]:
@@ -274,10 +317,21 @@ def dispatch(p: Prepared, log: bool = True) -> Dict[str, Any]:
             raise Unavailable(_f('The mail server did not take the message: {error}',
                                  error=str(e)), data={'id': log_id})
         status = 'sent'
+    # The copy in Sent: never in a development installation, whose switches
+    # keep the real mailbox out of it; its failure does not unsend the message
+    copy_error = None
+    if status == 'sent' and acct.sent and not opts['redirect_to']:
+        try:
+            append_sent(acct.sent, msg, clean['bcc'], _timeout(app))
+        except (IMAP_ERROR, OSError) as e:
+            copy_error = _f('Sent, but the copy in {folder} failed: {error}',
+                            folder=acct.sent.folder, error=str(e))
+            logger.warning('smtp: %s (account %s)', copy_error, acct.name)
     if log:
         _update(app, log_id, status=status, attachments=refs, message_id=msg['Message-ID'],
-                sent_at=now())
-    return {'id': log_id, 'status': status, 'message_id': msg['Message-ID']}
+                sent_at=now(), **({'error': copy_error} if copy_error else {}))
+    return {'id': log_id, 'status': status, 'message_id': msg['Message-ID'],
+            **({'warning': copy_error} if copy_error else {})}
 
 
 def send(message: Dict[str, Any], trusted: bool = True, log: bool = True) -> Dict[str, Any]:

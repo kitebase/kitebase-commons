@@ -102,4 +102,7 @@ register_translations('it', {
     'Every message sent, newest first, with how each one went.': "Tutti i messaggi spediti, dal più recente, con l'esito di ciascuno.",
     'Account': 'Account',
     'Email': 'Email',
+    # The copy in Sent (mailer.append_sent)
+    'Sent, but the copy in {folder} failed: {error}': 'Spedito, ma la copia in {folder} non è riuscita: {error}',
+    '{n} messages sent without their copy in the Sent folder: see the log': '{n} messaggi spediti senza la copia nella cartella Inviata: vedi il registro',
 })

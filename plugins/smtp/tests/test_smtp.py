@@ -139,11 +139,13 @@ def app(tmp_path_factory):
         os.chdir(cwd)
 
 
-def write_secrets(app, smtpd, **switches):
+def write_secrets(app, smtpd, sent=None, **switches):
     _inbox, port = smtpd
     data = {f'${k}': v for k, v in switches.items()}
     data['office'] = {'host': '127.0.0.1', 'port': port, 'security': 'none',
                       'from': 'Office <office@example.com>'}
+    if sent is not None:
+        data['office']['sent'] = sent
     data['info'] = {'host': '127.0.0.1', 'port': port, 'security': 'none',
                     'from': 'info@example.com', 'user': 'info', 'password': 'not-for-the-client'}
     (app.root / 'secrets' / 'smtp.yaml').write_text(yaml.safe_dump(data, sort_keys=False),
@@ -896,3 +898,93 @@ def test_an_invoice_is_written_to_its_customer(app, invoices):
 def test_a_customer_the_user_cannot_read_lends_no_address(app, invoices, monkeypatch):
     monkeypatch.setattr(kitebase.access, '_guard', lambda: NorthOnly())
     assert call(app, 'smtp_addresses', model='Invoice', id=1034)['data']['addresses'] == []
+
+
+# ── The copy in Sent (IMAP APPEND) ────────────────────────────────────────────
+
+class FakeImap:
+    """An IMAP server that keeps what it is asked: one instance per connection."""
+    made = []
+    answer = ('OK', [b'APPEND completed'])
+
+    def __init__(self, host, port, ssl_context=None, timeout=None):
+        self.host, self.port, self.ssl = host, port, ssl_context is not None
+        self.calls = []
+        FakeImap.made.append(self)
+
+    def starttls(self, ssl_context=None):
+        self.calls.append(('starttls',))
+
+    def login(self, user, password):
+        self.calls.append(('login', user, password))
+
+    def append(self, mailbox, flags, date_time, message):
+        self.calls.append(('append', mailbox, flags))
+        self.message = email.message_from_bytes(message, policy=policy.default)
+        return FakeImap.answer
+
+    def logout(self):
+        self.calls.append(('logout',))
+
+
+@pytest.fixture
+def imap(monkeypatch):
+    import smtp.mailer as mailer
+    FakeImap.made = []
+    FakeImap.answer = ('OK', [b'APPEND completed'])
+    monkeypatch.setattr(mailer.imaplib, 'IMAP4_SSL', FakeImap)
+    monkeypatch.setattr(mailer.imaplib, 'IMAP4', FakeImap)
+    return FakeImap
+
+
+def test_a_sent_folder_keeps_a_copy_with_its_bcc(app, smtpd, imap):
+    write_secrets(app, smtpd, sent='Sent')
+    result = call(app, 'smtp_send', message=message(bcc=['secret@example.com']))
+    assert result['status'] == 'success' and 'warning' not in result['data']
+    server, = imap.made
+    # The account's host, over IMAPS, no login for an account without one
+    assert (server.host, server.port, server.ssl) == ('127.0.0.1', 993, True)
+    assert server.calls[0] == ('append', '"Sent"', '(\\Seen)')
+    assert server.message['Subject'] == 'Invoice 1033'
+    assert server.message['Bcc'] == 'secret@example.com'
+    # The message that left carries no Bcc
+    assert smtpd[0].last()[1]['Bcc'] is None
+
+
+def test_a_sent_folder_may_say_its_own_server_and_login(app, smtpd, imap):
+    write_secrets(app, smtpd, sent={'host': 'imap.example.com', 'port': 143,
+                                    'folder': 'Sent Items', 'user': 'me', 'password': 'pw'})
+    call(app, 'smtp_send', message=message())
+    server, = imap.made
+    assert (server.host, server.port, server.ssl) == ('imap.example.com', 143, False)
+    assert [c[0] for c in server.calls] == ['starttls', 'login', 'append', 'logout']
+    assert server.calls[1] == ('login', 'me', 'pw')
+    assert server.calls[2][1] == '"Sent Items"'
+
+
+def test_a_copy_that_fails_does_not_unsend_the_message(app, smtpd, imap):
+    write_secrets(app, smtpd, sent='Sent')
+    imap.answer = ('NO', [b'[TRYCREATE] no such mailbox'])
+    result = call(app, 'smtp_send', message=message())
+    assert result['status'] == 'success'
+    assert len(smtpd[0].envelopes) == 1
+    row = log(app, result['data']['id'])
+    assert row.status == 'sent'
+    assert row.error.startswith('Sent, but the copy in Sent failed:') and 'TRYCREATE' in row.error
+    assert result['data']['warning'] == row.error
+    shown = call(app, 'smtp_compose_send', data={'account': 'office', 'to': 'ann@example.com',
+                                                  'subject': 'x', 'body': 'x'})
+    assert shown['$flow']['info'][1].startswith('Sent, but the copy in Sent failed:')
+
+
+@pytest.mark.parametrize('switch', [{'dry_run': True}, {'redirect_to': 'dev@example.com'}])
+def test_a_development_installation_keeps_no_copy(app, smtpd, imap, switch):
+    write_secrets(app, smtpd, sent='Sent', **switch)
+    call(app, 'smtp_send', message=message())
+    assert imap.made == []
+
+
+def test_check_refuses_a_sent_folder_it_cannot_use(app, smtpd):
+    write_secrets(app, smtpd, sent={'host': 'imap.example.com'})
+    issues = {i['code']: i for i in run_checks(app) if i['code'] == 'smtp-account'}
+    assert "'sent' is a folder" in issues['smtp-account']['message']

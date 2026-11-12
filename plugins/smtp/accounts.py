@@ -8,6 +8,16 @@
       user: office@example.com
       password: ...
       from: "Office <office@example.com>"
+      sent: Sent                      # a copy of each message in this IMAP folder
+
+`sent` names the folder of the account's mailbox where a copy of each message
+is appended, for the providers that do not keep one themselves: declaring it
+is asking for the copy. Written alone it is the folder, on the account's host
+over IMAPS (993) with the account's login; as a mapping it may say where:
+
+      sent: {host: imap.example.com, port: 993, folder: "Sent Items"}
+
+`security`, `user` and `password` may be given there too.
 
 The keys beginning with `$` are switches of the installation, the others name
 an account. The file is read at every use, so an account added while the
@@ -34,6 +44,17 @@ SECURITY = ('starttls', 'ssl', 'none')
 
 
 @dataclass
+class SentFolder:
+    """Where the copy of a sent message goes: an IMAP folder."""
+    host: str
+    port: int
+    security: str
+    folder: str
+    user: Optional[str] = None
+    password: Optional[str] = None
+
+
+@dataclass
 class Account:
     name: str
     host: str
@@ -42,6 +63,7 @@ class Account:
     sender: str
     user: Optional[str] = None
     password: Optional[str] = None
+    sent: Optional[SentFolder] = None
 
 
 def _entries() -> Dict[str, Any]:
@@ -78,7 +100,40 @@ def _problem(entry: Any) -> Optional[str]:
         return "'user' and 'password' go together"
     if len(getaddresses([entry['from']])) != 1 or not getaddresses([entry['from']])[0][1]:
         return f"'from' is not an address: {entry['from']!r}"
+    return _sent_problem(entry.get('sent'))
+
+
+def _sent_problem(sent: Any) -> Optional[str]:
+    if sent is None:
+        return None
+    if isinstance(sent, str):
+        return None if sent.strip() else "'sent' names a folder"
+    if not isinstance(sent, dict) or not sent.get('folder'):
+        return "'sent' is a folder, or a mapping with 'folder'"
+    port = sent.get('port', 993)
+    if not isinstance(port, int) or not 0 < port < 65536:
+        return f"'sent.port' must be a number, not {port!r}"
+    if sent.get('security') is not None and sent['security'] not in SECURITY:
+        return f"'sent.security' is one of {', '.join(SECURITY)}, not {sent['security']!r}"
+    if bool(sent.get('user')) != bool(sent.get('password')):
+        return "'sent.user' and 'sent.password' go together"
     return None
+
+
+def _sent(entry: Dict[str, Any]) -> Optional[SentFolder]:
+    """The folder of the copies, with what it does not say taken from the account."""
+    sent = entry.get('sent')
+    if sent is None:
+        return None
+    if isinstance(sent, str):
+        sent = {'folder': sent}
+    port = sent.get('port', 993)
+    own = bool(sent.get('user'))
+    return SentFolder(host=sent.get('host') or entry['host'], port=port,
+                      security=sent.get('security') or ('ssl' if port == 993 else 'starttls'),
+                      folder=str(sent['folder']),
+                      user=sent['user'] if own else entry.get('user'),
+                      password=sent['password'] if own else entry.get('password'))
 
 
 def account(name: str) -> Account:
@@ -93,7 +148,8 @@ def account(name: str) -> Account:
     port = entry.get('port', 587)
     return Account(name=name, host=entry['host'], port=port,
                    security=entry.get('security') or ('ssl' if port == 465 else 'starttls'),
-                   sender=entry['from'], user=entry.get('user'), password=entry.get('password'))
+                   sender=entry['from'], user=entry.get('user'), password=entry.get('password'),
+                   sent=_sent(entry))
 
 
 def of_user(user_id: Any) -> List[str]:

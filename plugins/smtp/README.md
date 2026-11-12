@@ -33,6 +33,27 @@ info:
 `security: starttls | ssl | none` overrides what the port implies. `user` and
 `password` go together, or neither for a relay that takes mail without a login.
 
+`sent` keeps a copy of each message in a folder of the account's mailbox, for
+the providers that do not keep one themselves (Gmail does, many do not), so
+whoever sends from the application finds the message in their own mail
+client. Declaring the folder is asking for the copy:
+
+```yaml
+office:
+  ...
+  sent: Sent                                         # IMAPS on the same host, the same login
+  # sent: {host: imap.example.com, port: 993, folder: "Sent Items", user: ..., password: ...}
+```
+
+The copy is appended after the message has left, marked as read, with its Bcc
+(which the message that left does not carry). A copy that fails does not
+unsend the message: the log row stays `sent`, its `error` says the copy
+failed, and so does the outcome the user sees. Under `$dry_run` or
+`$redirect_to` no copy is kept, so a development installation never writes
+into the real mailbox. A folder name with characters beyond ASCII would need
+IMAP's modified UTF-7: the usual names (`Sent`, `Sent Items`, `INBOX.Sent`)
+do not.
+
 The same folder serves any other kind of secret. A plugin that needs
 credentials reads them with `secrets.get('<kind>', '<name>')` and checks the
 format itself, as `accounts.py` does here. It never copies them into the

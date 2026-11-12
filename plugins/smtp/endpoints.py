@@ -218,8 +218,9 @@ def smtp_compose_send(data):
     else:
         to = [opts['redirect_to']] if opts['redirect_to'] else addresses(message.get('to'), 'to')
         info = _f('Sent to {to}', to=', '.join(parseaddr(a)[1] for a in to))
+    lines = [info] + ([result['warning']] if result.get('warning') else [])
     return {'status': 'success', 'code': 200, 'data': {'id': result['id']},
-            '$flow': {'info': [info]}}
+            '$flow': {'info': lines}}
 
 
 @endpoint('smtp_preview', access='smtp.send')
