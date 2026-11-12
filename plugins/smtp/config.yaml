@@ -11,3 +11,6 @@ license: MIT
 author: "Claudio Driussi"
 url: https://claudiodriussi.it
 depends_on: [users]
+# The destination "Email" of the print dialog, where the app prints too
+optional:
+  reports: [report_email]

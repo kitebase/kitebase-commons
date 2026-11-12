@@ -265,6 +265,19 @@ column the user may not read is dropped, whatever the provider says. In the
 demo the provider is `demo_mail`'s, a plugin of its own because neither
 `partners` nor `smtp` knows the other.
 
+A table with no email of its own borrows the addresses of the record a
+many-to-one relation reaches, with one line:
+
+```python
+from smtp.addresses import register_addresses_via
+register_addresses_via('Invoice', 'partner')
+```
+
+An invoice, a statement, an order is then written to its partner and its
+contacts, functions included, from the compose form, the merge or a print by
+email. The message stays about the invoice: its placeholders read
+`[[number]]` and `[[partner.name]]`, and it is in the invoice's mail sent.
+
 Then a message can ask for functions instead of people:
 
 - the compose dialog has a button per function held, which ticks its holders;
@@ -275,6 +288,16 @@ Then a message can ask for functions instead of people:
 When nobody in a record holds the functions asked, `fallback: main` writes to
 the main address (an invoice must arrive) and `skip` writes nothing (a
 technical newsletter). The summary names the records of each case.
+
+## A print by email
+
+Where the application loads `reports` too, the print dialog offers "Email"
+(`report_email.py`, loaded only then: `optional` in config.yaml). The print is
+made with the dialog's choices, staged as the user's attachment, and the
+compose form opens with it and the report's title as subject. A print of one
+row is a message about that row: its address in To, its addresses in the
+dialog, the message in its mail sent. A print of several rows leaves To empty
+and links the message to every row.
 
 ## Tests
 

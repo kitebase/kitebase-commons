@@ -101,4 +101,5 @@ register_translations('it', {
     'Email log': 'Registro email',
     'Every message sent, newest first, with how each one went.': "Tutti i messaggi spediti, dal più recente, con l'esito di ciascuno.",
     'Account': 'Account',
+    'Email': 'Email',
 })

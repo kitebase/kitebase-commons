@@ -20,7 +20,11 @@ register_translations('it', {
     # The labels of the YAML
     'Template': 'Tracciato',
     'Title': 'Titolo',
-    'Output': 'Destinazione',
+    'Output': 'Formato',
     'Preview (PDF)': 'Anteprima (PDF)',
     'Spreadsheet (Excel)': 'Foglio di calcolo (Excel)',
+    'Send to': 'Destinazione',
+    'Download': 'Scarica',
+    "Unknown destination: '{destination}'": "Destinazione sconosciuta: '{destination}'",
+    "You cannot send a print to '{destination}': it needs {permission}": "Non puoi mandare una stampa a '{destination}': serve {permission}",
 })

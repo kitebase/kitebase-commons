@@ -112,6 +112,26 @@ reports:
   header: ["Example Trading Ltd", "1 Market Street, Springfield", "info@example.com", "VAT 00000000000"]
 ```
 
+### Where a print goes
+
+The dialog downloads the print. A plugin that can do something else with the
+file registers a destination, and the dialog then asks where it goes:
+
+```python
+from reports import registry
+
+def deliver(report, data, file):      # file: kitebase.endpoints.FileResult
+    ...                               # the data of the answer: a next step
+registry.register_destination('email', 'Email', deliver, access='smtp.send')
+```
+
+`data` is what the dialog sent (rows, template, options), `file` the print
+made with the same checks as `reports.run`, and the answer is the next step
+of the chain, such as a form to open. The dialog offers a destination only to
+whoever holds its `access`; without any registered it is the dialog of
+before, downloading. The first destination is `smtp`'s "Email", which opens a
+message with the print attached.
+
 ## Dependencies
 
 Declared in `config.yaml` under `requires`: `andrep[playwright,sqlalchemy]`.

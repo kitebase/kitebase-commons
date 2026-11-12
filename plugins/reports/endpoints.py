@@ -29,6 +29,12 @@ from `reports.run` with the rows the report takes (`on_empty`).
 The values of the dialog arrive flat, so the names above are reserved: an
 option named like one of them is refused when the dialog is built.
 
+Where a plugin registers a destination (registry.register_destination), the
+dialog asks for one too, and its `then` calls `reports.deliver`: downloading
+answers the same download step as above, another destination makes the print
+(`render`, the same checks as `reports.run`) and hands it to the plugin, whose
+answer is the next step.
+
 The PDF opens in a tab, from which it is printed. HTML, JSON and the
 spreadsheet are saved: HTML made from data, opened as a blob, would run with
 the app's origin. The spreadsheet is the compiled records, one row per band
@@ -41,7 +47,7 @@ import datetime
 import decimal
 import io
 import json
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, Iterator, List, Tuple
 
 import kitebase.utils
 from kitebase.apptime import today
@@ -58,7 +64,7 @@ from reports.context import LayeredLoader, PublicResolver, plugin_layers, public
 HEADER_LINES = 4
 
 # What reports.run reads itself; every other key is an option.
-RESERVED = ('report', 'ids', 'template', 'title', 'format')
+RESERVED = ('report', 'ids', 'template', 'title', 'format', 'destination')
 
 FORMATS = {
     'pdf':  ('pdf', 'application/pdf', 'inline'),
@@ -114,6 +120,12 @@ def variants(report: registry.Report, loader: LayeredLoader):
 
 @endpoint('reports.run', access='reports.run')
 def run(data: Dict[str, Any]) -> Any:
+    return render(data)[1]
+
+
+def render(data: Dict[str, Any]) -> Tuple[registry.Report, FileResult]:
+    """The print `data` asks for, with every check of `reports.run`: the report,
+    and the file made."""
     report = registry.get(data.get('report') or '')
     if report is None:
         raise Invalid(_f("Unknown report: '{report}'", report=data.get('report')))
@@ -170,7 +182,27 @@ def run(data: Dict[str, Any]) -> Any:
         finally:
             registry.current_session.reset(token)
 
-    return FileResult(content, f'{template}_{today():%Y%m%d}.{ext}', mime, disposition)
+    return report, FileResult(content, f'{template}_{today():%Y%m%d}.{ext}', mime, disposition)
+
+
+@endpoint('reports.deliver', access='reports.run')
+def deliver(data: Dict[str, Any]) -> Dict[str, Any]:
+    """The `then` of a dialog that asks for a destination."""
+    name = data.get('destination') or registry.DOWNLOAD
+    rest = {k: v for k, v in data.items() if k != 'destination'}
+    if name == registry.DOWNLOAD:
+        return {'status': 'success', 'data': {'action': 'download', 'op': 'reports.run',
+                                              'params': rest}}
+    destination = registry.get_destination(name)
+    if destination is None:
+        raise Invalid(_f("Unknown destination: '{destination}'", destination=name))
+    for permission in access.declared(destination.access):
+        if not access.can(permission):
+            raise access.AccessDenied(permission, _f(
+                "You cannot send a print to '{destination}': it needs {permission}",
+                destination=_(destination.label), permission=permission))
+    report, file = render(rest)
+    return {'status': 'success', 'code': 200, 'data': destination.deliver(report, rest, file)}
 
 
 # ── The Print button ──────────────────────────────────────────────────────────
@@ -251,6 +283,20 @@ def print_form(app, report: registry.Report, templates: List[str],
     return view
 
 
+def add_destination(view: Dict[str, Any], offered: List[registry.Destination]) -> None:
+    """The destination field, after the output's: download first, then those
+    the user may use."""
+    field = {'name': 'destination', 'label': _('Send to'), 'type': 'String', 'required': True,
+             'choices': [{'value': registry.DOWNLOAD, 'label': _('Download')}]
+             + [{'value': d.name, 'label': _(d.label)} for d in offered]}
+    for section in view['layout']:
+        names = [f.get('name') for f in section.get('fields') or []]
+        if 'format' in names:
+            section['fields'].insert(names.index('format') + 1, field)
+            return
+    view['layout'].append({'type': 'section', 'id': 'destination', 'fields': [field]})
+
+
 @endpoint('reports.print', access='reports.run')
 def print_menu(data: Dict[str, Any]) -> Dict[str, Any]:
     table = data.get('table')
@@ -296,11 +342,18 @@ def print_menu(data: Dict[str, Any]) -> Dict[str, Any]:
         'title': _(report.title),
         'format': 'pdf',
     })
+    params = {'report': report.name, 'ids': ids}
+    then = {'action': 'download', 'op': 'reports.run', 'params': params}
+    offered = [d for d in registry.destinations()
+               if all(access.can(p) for p in access.declared(d.access))]
+    if offered:
+        add_destination(view, offered)
+        values['destination'] = registry.DOWNLOAD
+        then = {'action': 'endpoint', 'op': 'reports.deliver', 'params': params}
     return {'status': 'success', 'data': {
         'action': 'form',
         'title': _(report.title),
         'view': to_client(view),
         'values': values,
-        'then': {'action': 'download', 'op': 'reports.run',
-                 'params': {'report': report.name, 'ids': ids}},
+        'then': then,
     }}

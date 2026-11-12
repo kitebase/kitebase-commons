@@ -1,0 +1,22 @@
+# The core most office applications load together: users, printing, mail and
+# the tables for maintenance. A plugin with nothing of its own: it only
+# depends on them, and `include:` follows dependencies, so
+#
+#   plugins:
+#     - path: ../plugins
+#       include: [office, persons, partners]
+#
+# brings all of them, `common` included. An application that wants less names
+# the plugins one by one instead; one that wants more adds them beside it.
+#
+# What the group brings along: `reports` needs AndRep and a browser for the
+# PDF (reports/config.yaml), `smtp` the mail accounts in the secrets and the
+# media root `mail` (smtp/README.md). Loaded together, they meet: the print
+# dialog offers "Email" (smtp's optional module), which neither needs alone.
+name: office
+version: 0.0.1
+description: Users, printing, mail and the tables browser, loaded together
+license: MIT
+author: "Claudio Driussi"
+url: https://claudiodriussi.it
+depends_on: [common, users, reports, smtp, tables]

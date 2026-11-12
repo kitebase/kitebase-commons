@@ -13,7 +13,8 @@ author: "Claudio Driussi"
 #
 # `../plugins` is the sibling shared root: this repo *is* that root, and the
 # demo consumes it exactly as an external app would (relative path, out of its
-# own tree, plugins named one by one). A shared plugin added there stays inert
+# own tree, plugins chosen by name: the `office` group and two more). A shared
+# plugin added there stays inert
 # here too until it is listed: one that is still being built cannot break the
 # showcase.
 #
@@ -22,7 +23,7 @@ author: "Claudio Driussi"
 # domain names a role code.
 plugins:
   - path: ../plugins
-    include: [common, users, persons, partners, reports, smtp, tables]
+    include: [office, persons, partners]
   - plugins
 
 # db engine for sqlalchemy

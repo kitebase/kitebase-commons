@@ -53,6 +53,13 @@ CRM_MODEL = {'tables': {
         {'name': 'agent_id', 'foreign_key': {'target': 'Agent.id', 'relation': 'agent',
                                              'backref': 'customers'}},
     ]},
+    # No email of its own: an invoice is written to its customer
+    'Invoice': {'columns': [
+        {'name': 'id', 'type': 'ID'},
+        {'name': 'number', 'type': 'String', 'length': 20},
+        {'name': 'customer_id', 'foreign_key': {'target': 'Customer.id', 'relation': 'customer',
+                                                'backref': 'invoices'}},
+    ]},
 }}
 
 
@@ -150,7 +157,7 @@ def clean(app, smtpd):
     smtpd[0].envelopes.clear()
     shutil.rmtree(app.root / 'media' / 'mail', ignore_errors=True)
     with app.get_session() as s:
-        for name in ('MailLink', 'MailLog', 'Customer', 'Agent', 'User'):
+        for name in ('MailLink', 'MailLog', 'Invoice', 'Customer', 'Agent', 'User'):
             s.query(app.models[name]).delete()
         s.add(app.models['User'](id=7, username='tester', name='Tester', password='x', email='tester@example.com',
                                  mail_accounts=['office']))
@@ -162,6 +169,8 @@ def clean(app, smtpd):
         s.add(app.models['Customer'](id=43, name='Hillside', region='south',
                                      email='info@hillside.example'))
         s.add(app.models['Customer'](id=44, name='Lakeside', region='north'))
+        s.add(app.models['Invoice'](id=1033, number='1033', customer_id=42))
+        s.add(app.models['Invoice'](id=1034, number='1034', customer_id=43))
         s.commit()
     yield
 
@@ -806,3 +815,84 @@ def test_the_summary_follows_the_form(app, contacts):
     assert summary() == 'Messages: 1, addresses: 2. No contact with the function, skipped: Hillside'
     assert summary(per_contact=True).startswith('Messages: 2, addresses: 2.')
     assert summary(functions=[]) == 'Messages: 2, addresses: 2'
+
+
+# ── A print sent by email (report_email, with reports loaded) ───────────────
+
+@pytest.fixture
+def emailed(app, monkeypatch):
+    """The destination "Email" handed a print of crm's Customer statement."""
+    pytest.importorskip('andrep')
+    kitebase.plugins.load_module(COMMONS / 'reports' / 'registry.py')
+    from reports import registry
+    monkeypatch.setattr(registry, '_DESTINATIONS', {})
+    kitebase.plugins.load_module(COMMONS / 'smtp' / 'report_email.py')
+    import importlib
+    importlib.reload(sys.modules['smtp.report_email'])      # registers again, here
+    from kitebase.endpoints import FileResult
+    report = registry.Report('crm.statement', loop=lambda r, p: None, table='Customer',
+                             label='Statement')
+    destination = registry.get_destination('email')
+
+    def send_print(*ids, title=None):
+        kitebase.context.replace({'username': 'tester', 'id': 7})
+        file = FileResult(b'%PDF-1.4 statement', 'statement_20261112.pdf', 'application/pdf')
+        return destination.deliver(report, {'ids': list(ids), 'title': title}, file)
+    return send_print
+
+
+def test_a_print_of_one_row_opens_a_message_to_it_with_the_file(app, smtpd, emailed):
+    action = emailed(42, title='Statement of November')
+    values = action['draft']['values']
+    assert (action['action'], values['subject'], values['to']) == (
+        'open_form', 'Statement of November', 'Riverside *Hardware* <orders@riverside.example>')
+    assert values['record'] == {'model': 'Customer', 'id': 42}
+    assert [a['name'] for a in values['attachments']] == ['statement_20261112.pdf']
+
+    result = call(app, 'smtp_compose_send', data=values)
+    assert result['status'] == 'success', result
+    sent = email.message_from_bytes(smtpd[0].envelopes[0].content, policy=policy.default)
+    assert [p.get_filename() for p in sent.iter_attachments()] == ['statement_20261112.pdf']
+
+
+def test_a_print_of_several_rows_has_no_recipient_and_is_linked_to_each(app, smtpd, emailed):
+    values = emailed(42, 43)['draft']['values']
+    assert 'to' not in values and 'record' not in values
+    assert values['subject'] == 'Statement'
+    result = call(app, 'smtp_compose_send', data={**values, 'to': 'ann@example.com'})
+    assert result['status'] == 'success', result
+    assert len(call(app, 'smtp_sent', model='Customer', id=43)['data']) == 1
+
+
+def test_the_links_of_a_form_are_records_the_user_reads(app, monkeypatch):
+    monkeypatch.setattr(kitebase.access, '_guard', lambda: NorthOnly())
+    draft = {'account': 'office', 'to': 'ann@example.com', 'subject': 'x', 'body': 'x',
+             'links': [{'model': 'Customer', 'id': 43}]}
+    assert call(app, 'smtp_compose_send', data=draft)['status_code'] == 404
+
+
+# ── A table that borrows the addresses of its relation ───────────────────────
+
+@pytest.fixture
+def invoices(app, contacts, monkeypatch):
+    import smtp.addresses as addresses
+    monkeypatch.setitem(addresses._providers, 'Invoice', None)
+    monkeypatch.setitem(addresses._functions, 'Invoice', None)
+    addresses.register_addresses_via('Invoice', 'customer')
+
+
+def test_an_invoice_is_written_to_its_customer(app, invoices):
+    values = call(app, 'smtp_compose', table='Invoice', id=1033,
+                  subject='Invoice [[number]] for [[customer.name]]')['data']['draft']['values']
+    assert values['to'] == 'Riverside <orders@riverside.example>'
+    assert values['record'] == {'model': 'Invoice', 'id': 1033}
+    data = call(app, 'smtp_addresses', model='Invoice', id=1033)['data']
+    assert len(data['addresses']) == 3                    # the customer's, contacts included
+    assert [f['value'] for f in data['functions']] == ['TEC', 'ADM', 'WHS']
+    to_accounts = call(app, 'smtp_compose', table='Invoice', id=1033, functions=['ADM'])
+    assert to_accounts['data']['draft']['values']['to'] == 'Carla Bianchi <carla@riverside.example>'
+
+
+def test_a_customer_the_user_cannot_read_lends_no_address(app, invoices, monkeypatch):
+    monkeypatch.setattr(kitebase.access, '_guard', lambda: NorthOnly())
+    assert call(app, 'smtp_addresses', model='Invoice', id=1034)['data']['addresses'] == []

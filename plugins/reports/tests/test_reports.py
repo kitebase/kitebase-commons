@@ -612,3 +612,69 @@ def test_the_print_button_offers_what_the_user_may_print(app, denied):
     body = press_print(app, table='Customer', id=1, view_ids=[2, 1])['data']
     assert body['action'] == 'form'                       # one report left: its dialog
     assert body['then']['params']['report'] == 'shop.customers'
+
+
+# ── Destinations ──────────────────────────────────────────────────────────────
+
+@pytest.fixture
+def archive(monkeypatch):
+    """A destination of a plugin: it keeps what it is handed, and answers a message."""
+    from reports import registry
+    kept = []
+
+    def deliver(report, data, file):
+        kept.append((report.name, data, file))
+        return {'message': f'kept {file.filename}'}
+    monkeypatch.setattr(registry, '_DESTINATIONS', {})
+    registry.register_destination('archive', 'Archive', deliver, access='shop.archive')
+    return kept
+
+
+def deliver(app, **data):
+    return handle_generic_endpoint(app.dispatcher, 'reports.deliver', data,
+                                   {'username': 'tester', 'id': 1})
+
+
+def test_without_destinations_the_dialog_downloads_as_ever(app):
+    body = press_print(app, table='Customer', view_ids=[2, 1], report='shop.customers')['data']
+    assert 'destination' not in body['values']
+    assert body['then']['action'] == 'download'
+
+
+def test_a_destination_is_asked_after_the_output(app, archive):
+    body = press_print(app, table='Customer', view_ids=[2, 1], report='shop.customers')['data']
+    fields = body['view']['layout'][0]['fields']
+    assert [f['name'] for f in fields][:4] == ['template', 'title', 'format', 'destination']
+    assert [c['value'] for c in fields[3]['choices']] == ['download', 'archive']
+    assert body['values']['destination'] == 'download'
+    assert body['then'] == {'action': 'endpoint', 'op': 'reports.deliver',
+                            'params': {'report': 'shop.customers', 'ids': [2, 1]}}
+
+
+def test_downloading_answers_the_download_step(app, archive):
+    body = deliver(app, report='shop.customers', ids=[1], format='json', destination='download')
+    assert body['data'] == {'action': 'download', 'op': 'reports.run',
+                            'params': {'report': 'shop.customers', 'ids': [1], 'format': 'json'}}
+    assert archive == []
+
+
+def test_a_destination_is_handed_the_print_made(app, archive):
+    body = deliver(app, report='shop.customers', ids=[2, 1], format='json',
+                   destination='archive', with_orders=False)
+    assert body['status'] == 'success', body
+    (name, data, file), = archive
+    assert name == 'shop.customers' and data['ids'] == [2, 1] and 'destination' not in data
+    assert [r[1] for r in rows(file)] == ['Turing', 'Byron']
+    assert body['data'] == {'message': f'kept {file.filename}'}
+
+
+def test_a_destination_the_user_may_not_use_is_neither_offered_nor_taken(app, archive, denied):
+    denied('shop.archive')
+    body = press_print(app, table='Customer', view_ids=[2, 1], report='shop.customers')['data']
+    assert body['then']['action'] == 'download'
+    result = deliver(app, report='shop.customers', ids=[1], destination='archive')
+    assert result['status_code'] == 403 and archive == []
+
+
+def test_an_unknown_destination_is_refused(app, archive):
+    assert deliver(app, report='shop.customers', ids=[1], destination='fax')['status_code'] == 400

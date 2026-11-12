@@ -22,6 +22,9 @@ column the user does not read is dropped here, whatever the provider says.
 `partner_functions` lists the codes with their labels, `[{value, label}]`:
 the dialog offers them to tick the contacts holding one.
 
+A table without an email of its own may borrow the addresses of the record a
+many-to-one relation reaches: `register_addresses_via('Invoice', 'partner')`.
+
 A model with no provider has one address, its `email` column, as main.
 
 `choose` is which addresses a message takes: the main ones, or those holding
@@ -38,7 +41,7 @@ from sqlalchemy import inspect
 import kitebase.utils
 from kitebase import access
 from kitebase.endpoint_db import coerce_value
-from kitebase.errors import Invalid
+from kitebase.errors import Invalid, NotFound
 from kitebase.i18n import _f
 
 Provider = Callable[[Any], List[Dict[str, Any]]]
@@ -57,6 +60,49 @@ def register_addresses(model: str, provider: Provider,
     _providers[model] = provider
     if functions is not None:
         _functions[model] = functions
+
+
+def register_addresses_via(model: str, relation: str) -> None:
+    """The addresses of a record of `model` are those of the record its
+    many-to-one `relation` reaches: an invoice is written to its partner.
+
+        register_addresses_via('Invoice', 'partner')
+
+    `relation` may be a dotted path (`order.partner`). The record reached is
+    read only when the user reads it; the message stays about the record of
+    `model`, whose placeholders it fills."""
+    def target(record_id: Any) -> Optional[Tuple[str, Any]]:
+        app = kitebase.utils.get_app()
+        Model = app.models[model]
+        key = inspect(Model).primary_key[0].key
+        with app.get_session() as session:
+            row = session.get(Model, coerce_value(Model, key, record_id))
+            for step in relation.split('.'):
+                row = getattr(row, step, None) if row is not None else None
+            if row is None:
+                return None
+            Target = type(row)
+            return Target.__name__, getattr(row, inspect(Target).primary_key[0].key)
+
+    def provider(record_id: Any) -> List[Dict[str, Any]]:
+        from smtp.endpoints import check_readable
+        found = target(record_id)
+        if found is None:
+            return []
+        try:
+            check_readable(*found)
+        except (access.AccessDenied, NotFound):
+            return []
+        return of_record(*found)
+
+    def functions() -> List[Dict[str, Any]]:
+        app = kitebase.utils.get_app()
+        Model = app.models[model]
+        for step in relation.split('.'):
+            Model = inspect(Model).relationships[step].mapper.class_
+        return functions_of(Model.__name__)
+
+    register_addresses(model, provider, functions)
 
 
 def functions_of(model: str) -> List[Dict[str, Any]]:

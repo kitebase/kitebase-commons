@@ -134,6 +134,52 @@ def get(name: str) -> Optional[Report]:
     return _REPORTS.get(name)
 
 
+# ── Destinations ──────────────────────────────────────────────────────────────
+#
+# Where a print goes besides the browser. Downloading is the default and is not
+# registered; another plugin registers what else can be done with the file:
+#
+#     register_destination('email', 'Email', deliver, access='smtp.send')
+#
+#     def deliver(report, data, file):   # file: kitebase.endpoints.FileResult
+#         ...                            # the `data` of an answer: a next step
+#
+# `data` is what the dialog sent (the rows, the template, the options), the
+# file is the print made with it, and what `deliver` returns is the data of
+# the answer, usually a next step of the chain (open a form). The dialog
+# offers a destination only to whoever holds its `access`.
+
+@dataclass(frozen=True)
+class Destination:
+    name: str
+    label: str
+    deliver: Callable
+    access: Any = None
+
+
+DOWNLOAD = 'download'
+
+_DESTINATIONS: Dict[str, Destination] = {}
+
+
+def register_destination(name: str, label: str, deliver: Callable, *,
+                         access: Any = None) -> Destination:
+    """Offer `name` in the print dialog. Raises ValueError on `download`,
+    which is the default and no plugin's to replace."""
+    if name == DOWNLOAD:
+        raise ValueError(f"'{DOWNLOAD}' is the default destination, not one to register")
+    found = _DESTINATIONS[name] = Destination(name, label, deliver, access)
+    return found
+
+
+def destinations() -> Iterable[Destination]:
+    return list(_DESTINATIONS.values())
+
+
+def get_destination(name: str) -> Optional[Destination]:
+    return _DESTINATIONS.get(name)
+
+
 def all_reports() -> Dict[str, Report]:
     return dict(_REPORTS)
 

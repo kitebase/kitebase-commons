@@ -110,7 +110,7 @@ def smtp_my_accounts(data):
 # The fields of the compose form that make the message; any other field of
 # the form is a parameter of the text, read by [[$name]]
 MESSAGE_FIELDS = ('account', 'to', 'cc', 'bcc', 'reply_to', 'subject', 'body', 'receipt',
-                  'attachments', 'record')
+                  'attachments', 'record', 'links')
 
 
 def _recipient(model: str, record_id: Any, functions: Optional[List[str]] = None,
@@ -200,10 +200,17 @@ def smtp_compose_send(data):
     params = {k: v for k, v in draft.items() if k not in MESSAGE_FIELDS}
     if params:
         message['params'] = params
+    links = message.get('links') or []
+    if not isinstance(links, list) or not all(isinstance(l, dict) and l.get('model')
+                                              for l in links):
+        raise Invalid(_("'links' is a list of {model, id, role}"))
+    for link in links:
+        check_readable(str(link['model']), link.get('id'))
     record = message.get('record')
     if record:
         check_readable(str(record['model']), record['id'])
-        message['links'] = _recipient_links(record, message.get('to'))
+        links = links + _recipient_links(record, message.get('to'))
+    message['links'] = links
     result = send(message, trusted=False)
     opts = options()
     if result['status'] == 'dry_run':
