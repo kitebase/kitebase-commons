@@ -590,3 +590,21 @@ def test_a_refused_draft_is_an_error_the_form_shows(app, smtpd):
 
 def test_the_form_offers_the_users_accounts_only(app):
     assert [c['value'] for c in call(app, 'smtp_my_accounts')['data']] == ['office']
+
+
+def test_a_row_command_opens_the_page_of_the_mail_of_its_record(app, monkeypatch):
+    result = call(app, 'smtp_sent_page', table='Customer', id=42)
+    assert result['data'] == {'action': 'stack_push', 'panel': 'smtp_sent',
+                              'props': {'model': 'Customer', 'id': 42}}
+    monkeypatch.setattr(kitebase.access, '_guard', lambda: NorthOnly())
+    assert call(app, 'smtp_sent_page', table='Customer', id=43)['status_code'] == 404
+
+
+def test_the_list_shows_addresses_and_attachments_as_text(app, smtpd):
+    staged = attach(app, 'terms.pdf', b'%PDF-1.4')
+    call(app, 'smtp_send', message=message(to=['a@example.com', 'b@example.com'],
+                                           attachments=[{'ref': staged['ref']}],
+                                           links=[{'model': 'Customer', 'id': 42}]))
+    row = call(app, 'smtp_sent', model='Customer', id=42)['data'][0]
+    assert (row['to'], row['attachments'], row['status']) == (
+        'a@example.com, b@example.com', 'terms.pdf', 'sent')

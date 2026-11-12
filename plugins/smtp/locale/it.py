@@ -61,4 +61,11 @@ register_translations('it', {
         'Chiede al programma di posta del destinatario di confermare la lettura; molti lo ignorano.',
     'A message from one of your accounts. Sending it closes the form; a refusal says what to fix and keeps what you wrote.':
         'Un messaggio da uno dei tuoi account. Spedirlo chiude la form; un rifiuto dice cosa correggere e tiene ciò che hai scritto.',
+    'Select a record first': 'Seleziona prima un record',
+    'Email sent': 'Email inviate',
+    'The messages sent about this record, newest first, with how each one went.':
+        'I messaggi spediti su questo record, dal più recente, con il loro esito.',
+    'Sent': 'Spedita',
+    'Status': 'Stato',
+    'Error': 'Errore',
 })

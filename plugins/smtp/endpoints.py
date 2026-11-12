@@ -19,7 +19,8 @@ server's, so what is seen is what is sent.
 has no model; its save, `smtp_compose_send`, sends the message, and a refusal
 (an address that is not one) leaves the form open with what was written.
 
-`smtp_sent` is the mail of one record, newest first. The links are not read
+`smtp_sent` is the mail of one record, newest first; `smtp_sent_page`, a
+row command, opens the page that lists it (the `smtp_sent` page). The links are not read
 directly: the record is read first, with the user's permissions and record
 rules (404 when they do not reach it), and only then its links, for the
 system. Whoever sees the record sees the mail about it, and nothing else.
@@ -198,6 +199,21 @@ def smtp_preview(data):
     return {'status': 'success', 'code': 200, 'data': parts}
 
 
+@endpoint('smtp_sent_page', access=access.PER_TABLE)
+def smtp_sent_page(data):
+    """A row command: the page of the mail sent about the row, which reads it
+    through smtp_sent. The record is checked here too, so a row the user cannot
+    read opens nothing."""
+    model, record_id = data.get('table'), data.get('id')
+    if not model or record_id is None:
+        raise Invalid(_('Select a record first'))
+    if not check_readable(str(model), record_id):
+        access.check_table('MailLog', 'read')
+    return {'status': 'success', 'code': 200,
+            'data': {'action': 'stack_push', 'panel': 'smtp_sent',
+                     'props': {'model': model, 'id': record_id}}}
+
+
 @endpoint('smtp_sent', access=access.PER_TABLE)
 def smtp_sent(data):
     model, record_id = data.get('model'), data.get('id')
@@ -212,12 +228,14 @@ def smtp_sent(data):
                 .join(MailLog, MailLink.mail_log_id == MailLog.id)
                 .filter(MailLink.model == str(model), MailLink.record_id == str(record_id))
                 .order_by(MailLog.id.desc()).all())
+        # One row per message, as a list shows it: the lists of addresses and
+        # attachments as text
         out: List[Dict[str, Any]] = [{
             'id': log.id, 'role': link.role, 'status': log.status,
-            'sender': log.sender, 'to': log.to, 'cc': log.cc,
+            'sender': log.sender, 'to': ', '.join(log.to or []), 'cc': ', '.join(log.cc or []),
             'subject': log.subject,
-            'attachments': [outbox.name_of(r) for r in log.attachments or []],
-            'sent_at': log.sent_at.isoformat() if log.sent_at else None,
+            'attachments': ', '.join(outbox.name_of(r) for r in log.attachments or []),
+            'sent_at': log.sent_at.isoformat(sep=' ', timespec='minutes') if log.sent_at else None,
             'error': log.error,
         } for link, log in rows]
     return {'status': 'success', 'code': 200, 'data': out}

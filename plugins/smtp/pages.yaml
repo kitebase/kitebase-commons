@@ -17,6 +17,28 @@ pages:
     content:
       $ref: views.smtp_compose_form
 
+  # The mail of one record, opened by the row command smtp_sent_page, which
+  # hands the record to the list: `model` and `id`, read as $trigger.
+  smtp_sent:
+    title: Email sent
+    help: The messages sent about this record, newest first, with how each one went.
+    content:
+      type: table
+      source:
+        endpoint: smtp_sent
+        params: { model: $trigger.model, id: $trigger.id }
+      # What left is a record of what happened: nothing to add, change or delete
+      navigator:
+        mode: readonly
+      columns:
+        - { field: sent_at, title: Sent, width: 140 }
+        - { field: status, title: Status, width: 90 }
+        - { field: subject, title: Subject }
+        - { field: to, title: To }
+        - { field: sender, title: From }
+        - { field: attachments, title: Attachments }
+        - { field: error, title: Error }
+
 views:
 
   smtp_compose_form:
