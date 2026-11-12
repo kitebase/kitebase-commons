@@ -6,17 +6,20 @@
         'account': 'office',                  # default: the user's first
         'to': ['Ann <ann@example.com>'], 'cc': [], 'bcc': [],
         'reply_to': None,                     # default: none, replies go to `from`
-        'subject': 'Invoice 1033',
-        'body': 'The invoice is **attached**.',   # markdown
+        'record': {'model': 'Invoice', 'id': 1033},   # what [[...]] reads, linked
+        'params': {'note': 'Thank you'},      # what [[$...]] reads
+        'subject': 'Invoice [[number]]',
+        'body': 'Dear [[partner.name]],\n\nthe invoice is **attached**. [[$note]]',
         'attachments': [{'media': 'books:2026/11/x.pdf'},
                         {'name': 'notes.txt', 'content': b'...'}],
         'receipt': True,                      # Disposition-Notification-To
         'links': [{'model': 'Partner', 'id': 42, 'role': 'recipient'}],
     })                                         # -> {'id', 'status', 'message_id'}
 
-The body is markdown: the plain text part is the markdown itself, the HTML
-part its rendering, with raw HTML off so whoever writes the text cannot put
-markup in the message. Attachments are copied into the folder of the log row,
+Subject and body are filled and rendered by `templates.complete`: a
+placeholder that does not resolve refuses the message before anything is
+written. The record the placeholders read is linked to the message, besides
+the `links` given. Attachments are copied into the folder of the log row,
 which then holds exactly what left; a `media` reference is read on the server,
 so this function trusts its caller with it, and the endpoint never passes one
 from the client.
@@ -35,8 +38,6 @@ from email.message import EmailMessage
 from email.utils import formataddr, formatdate, getaddresses, make_msgid, parseaddr
 from typing import Any, Dict, Iterable, List, Tuple
 
-from markdown_it import MarkdownIt
-
 import kitebase.context
 import kitebase.utils
 from kitebase.apptime import now
@@ -45,24 +46,10 @@ from kitebase.i18n import _, _f
 from kitebase.media import AllocContext
 
 from smtp.accounts import Account, account, choose, options
+from smtp.templates import complete
 
 DEFAULT_TIMEOUT = 30
 DRY_RUN_FILE = 'dry_run.eml'
-
-_markdown = MarkdownIt('js-default')
-
-_HTML = """<!DOCTYPE html>
-<html><head><meta charset="utf-8"></head>
-<body style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.5; color: #222;">
-{body}</body></html>
-"""
-
-
-def render(body: str) -> Tuple[str, str]:
-    """The two parts of a markdown body: plain text and HTML."""
-    text = body or ''
-    return text, _HTML.format(body=_markdown.render(text))
-
 
 def addresses(value: Any, field: str) -> List[str]:
     """A recipient field as a list of addresses, each checked: Invalid names the
@@ -91,9 +78,10 @@ def _timeout(app: Any) -> float:
     return float(section.get('timeout') or DEFAULT_TIMEOUT)
 
 
-def build(message: Dict[str, Any], acct: Account,
+def build(message: Dict[str, Any], acct: Account, parts: Dict[str, Any],
           attachments: List[Tuple[str, bytes]]) -> EmailMessage:
-    """The MIME message, headers included; the envelope is the caller's."""
+    """The MIME message, headers included, from the parts `complete` made of
+    subject and body; the envelope is the caller's."""
     msg = EmailMessage()
     sender = message.get('from') or acct.sender
     msg['From'] = sender
@@ -102,15 +90,14 @@ def build(message: Dict[str, Any], acct: Account,
             msg[header] = ', '.join(message[field])
     if message.get('reply_to'):
         msg['Reply-To'] = message['reply_to']
-    msg['Subject'] = message['subject']
+    msg['Subject'] = parts['subject']
     msg['Date'] = formatdate(localtime=True)
     domain = parseaddr(sender)[1].rpartition('@')[2] or None
     msg['Message-ID'] = make_msgid(domain=domain)
     if message.get('receipt'):
         msg['Disposition-Notification-To'] = sender
-    text, html = render(message.get('body') or '')
-    msg.set_content(text)
-    msg.add_alternative(html, subtype='html')
+    msg.set_content(parts['text'])
+    msg.add_alternative(parts['html'], subtype='html')
     for name, content in attachments:
         mime = mimetypes.guess_type(name)[0] or 'application/octet-stream'
         maintype, subtype = mime.split('/', 1)
@@ -156,6 +143,15 @@ def _validated(message: Dict[str, Any]) -> Dict[str, Any]:
             isinstance(link, dict) and link.get('model') and link.get('id') is not None
             for link in links):
         raise Invalid(_("'links' is a list of {model, id, role}"))
+    record = clean.get('record')
+    if record is not None:
+        if not isinstance(record, dict) or not record.get('model') or record.get('id') is None:
+            raise Invalid(_("'record' is {model, id}"))
+        if not any(str(link['model']) == str(record['model'])
+                   and str(link['id']) == str(record['id']) for link in links):
+            links = links + [{'model': record['model'], 'id': record['id']}]
+    if clean.get('params') is not None and not isinstance(clean['params'], dict):
+        raise Invalid(_("'params' is a mapping of name to value"))
     clean['links'] = links
     return clean
 
@@ -202,6 +198,7 @@ def send(message: Dict[str, Any]) -> Dict[str, Any]:
     """Send one message and log it; see the module's docstring."""
     app = kitebase.utils.get_app()
     clean = _validated(message)
+    parts = complete(clean)
     acct = account(choose(clean.get('account')))
     files = _attachments(app, clean.get('attachments'))
     opts = options()
@@ -214,7 +211,7 @@ def send(message: Dict[str, Any]) -> Dict[str, Any]:
         row = MailLog(status='sending', account=acct.name,
                       sender=clean.get('from') or acct.sender, reply_to=clean.get('reply_to'),
                       to=clean['to'], cc=clean['cc'], bcc=clean['bcc'], delivered_to=recipients,
-                      subject=clean['subject'], body=clean.get('body') or '',
+                      subject=parts['subject'], body=parts['text'],
                       receipt=bool(clean.get('receipt')), user_id=context.get('id'))
         session.add(row)
         session.flush()
@@ -225,7 +222,7 @@ def send(message: Dict[str, Any]) -> Dict[str, Any]:
         log_id = row.id
 
     stored = _store(app, log_id, files)
-    msg = build(clean, acct, list(zip(stored, (content for _n, content in files))))
+    msg = build(clean, acct, parts, list(zip(stored, (content for _n, content in files))))
     if opts['redirect_to']:
         msg['X-Redirected-From'] = ', '.join(_bare(clean['to'] + clean['cc'] + clean['bcc']))
 

@@ -99,6 +99,36 @@ part is its rendering with raw HTML turned off. A `media` attachment is read on
 the server with no permission check, so only server code passes one: the
 `smtp_send` endpoint refuses references from the client.
 
+## Placeholders
+
+Subject and body may hold placeholders, filled when the message is sent:
+
+```python
+send({
+    'record': {'model': 'Invoice', 'id': 1033},
+    'params': {'note': 'Thank you for your order.'},
+    'to': ['ann@example.com'],
+    'subject': 'Invoice [[number]] of [[date]]',
+    'body': 'Dear [[partner.name]],\n\n[[$note]]',
+})
+```
+
+- `[[path]]` is a field of the record, following many-to-one relations with
+  dots. `[[$name]]` is a parameter.
+- An empty field gives nothing. A path that names nothing, a list of records, a
+  secret column or a column the user may not read does not resolve. The message
+  is then refused, naming each placeholder that did not resolve and why.
+- The record is read with the sender's permissions and record rules, so a
+  template shows nothing the sender's form would not. It is also linked to the
+  message.
+- Dates and numbers are written as the current locale writes them.
+- A value goes into the HTML part as text: a `*` in a name stays a star.
+
+`smtp_preview` takes the same message and returns `subject`, `text`, `html`,
+the `placeholders` found and the ones `missing`, without refusing. A composer
+shows the preview, and since the server renders it, what is shown is what is
+sent.
+
 ## The mail of a record
 
 `MailLink` ties a message to any number of records of any table: the model's

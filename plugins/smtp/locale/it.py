@@ -30,4 +30,15 @@ register_translations('it', {
     'Mail accounts': 'Account di posta',
     'The accounts this user may send email from; the first one is the default.':
         "Gli account da cui l'utente può spedire email; il primo è quello predefinito.",
+    'yes': 'sì',
+    'no': 'no',
+    '{name} is a list of records': '{name} è una lista di record',
+    '{name} is a record: name one of its fields': '{name} è un record: indica uno dei suoi campi',
+    '{model} has no field {name}': '{model} non ha il campo {name}',
+    'no value given for {name}': 'nessun valore per {name}',
+    '{name} needs a record': '{name} richiede un record',
+    "'{model}' is not a table": "'{model}' non è una tabella",
+    'Some placeholders do not resolve: {names}': 'Alcuni segnaposto non si risolvono: {names}',
+    "'record' is {model, id}": "'record' è {model, id}",
+    "'params' is a mapping of name to value": "'params' è una mappa di nome e valore",
 })

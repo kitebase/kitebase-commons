@@ -13,6 +13,8 @@ import importlib.util
 import os
 import shutil
 import socket
+from datetime import date
+from decimal import Decimal
 import sys
 from email import policy
 from pathlib import Path
@@ -34,11 +36,23 @@ from kitebase.server_utils import handle_generic_endpoint
 
 COMMONS = Path(__file__).resolve().parents[2]
 
-CRM_MODEL = {'tables': {'Customer': {'columns': [
-    {'name': 'id', 'type': 'ID'},
-    {'name': 'name', 'type': 'String', 'length': 60},
-    {'name': 'region', 'type': 'String', 'length': 10},
-]}}}
+CRM_MODEL = {'tables': {
+    'Agent': {'columns': [
+        {'name': 'id', 'type': 'ID'},
+        {'name': 'name', 'type': 'String', 'length': 60},
+    ]},
+    'Customer': {'columns': [
+        {'name': 'id', 'type': 'ID'},
+        {'name': 'name', 'type': 'String', 'length': 60},
+        {'name': 'region', 'type': 'String', 'length': 10},
+        {'name': 'since', 'type': 'Date'},
+        {'name': 'balance', 'type': 'Numeric', 'precision': 12, 'scale': 2},
+        {'name': 'pin', 'type': 'String', 'length': 10, 'secret': True},
+        {'name': 'margin', 'type': 'Integer', 'column_group': 'pricing'},
+        {'name': 'agent_id', 'foreign_key': {'target': 'Agent.id', 'relation': 'agent',
+                                             'backref': 'customers'}},
+    ]},
+}}
 
 
 def free_port() -> int:
@@ -135,11 +149,14 @@ def clean(app, smtpd):
     smtpd[0].envelopes.clear()
     shutil.rmtree(app.root / 'media' / 'mail', ignore_errors=True)
     with app.get_session() as s:
-        for name in ('MailLink', 'MailLog', 'Customer', 'User'):
+        for name in ('MailLink', 'MailLog', 'Customer', 'Agent', 'User'):
             s.query(app.models[name]).delete()
         s.add(app.models['User'](id=7, username='tester', name='Tester', password='x', email='tester@example.com',
                                  mail_accounts=['office']))
-        s.add(app.models['Customer'](id=42, name='Riverside', region='north'))
+        s.add(app.models['Agent'](id=1, name='Carla Bianchi'))
+        s.add(app.models['Customer'](id=42, name='Riverside *Hardware*', region='north',
+                                     since=date(2024, 3, 5), balance=Decimal('1234.50'),
+                                     pin='0000', margin=30, agent_id=1))
         s.add(app.models['Customer'](id=43, name='Hillside', region='south'))
         s.commit()
     yield
@@ -381,3 +398,97 @@ def test_a_label_is_linked_and_read_with_the_log(app, monkeypatch):
     assert len(call(app, 'smtp_sent', model='campaign', id='spring')['data']) == 1
     monkeypatch.setattr(kitebase.access, '_guard', lambda: NorthOnly())
     assert call(app, 'smtp_sent', model='campaign', id='spring')['status_code'] == 403
+
+
+# ── Placeholders ──────────────────────────────────────────────────────────────
+
+CUSTOMER = {'model': 'Customer', 'id': 42}
+
+
+def preview(app, **over):
+    result = call(app, 'smtp_preview', message=message(**over))
+    assert result['status'] == 'success', result
+    return result['data']
+
+
+def test_placeholders_read_the_record_its_relations_and_the_params(app):
+    parts = preview(app, record=CUSTOMER, params={'note': 'See you soon'},
+                    subject='For [[name]]',
+                    body='Dear [[ name ]],\n\nyour agent is [[agent.name]]. [[$note]]')
+    assert parts['missing'] == {}
+    assert parts['subject'] == 'For Riverside *Hardware*'
+    assert parts['text'] == 'Dear Riverside *Hardware*,\n\nyour agent is Carla Bianchi. See you soon'
+    assert parts['placeholders'] == ['name', 'agent.name', '$note']
+
+
+def test_a_value_is_text_in_the_html_never_markdown(app):
+    html = preview(app, record=CUSTOMER, body='**[[name]]**')['html']
+    assert '<strong>Riverside *Hardware*</strong>' in html
+
+
+def test_dates_and_numbers_read_as_the_locale_writes_them(app):
+    from kitebase.i18n import use_locale
+    with use_locale('it'):
+        parts = preview(app, record=CUSTOMER, body='[[since]] [[balance]]')
+    assert parts['text'] == '05/03/2024 1234,5'
+    assert preview(app, record=CUSTOMER, body='[[since]] [[balance]]')['text'] == '2024-03-05 1234.5'
+
+
+def test_an_empty_relation_is_an_empty_value_not_an_unknown_one(app):
+    with app.get_session() as s:
+        s.get(app.models['Customer'], 42).agent_id = None
+        s.commit()
+    parts = preview(app, record=CUSTOMER, body='agent: [[agent.name]].')
+    assert (parts['missing'], parts['text']) == ({}, 'agent: .')
+
+
+@pytest.mark.parametrize('placeholder', [
+    'nope', 'agent.nope', 'agent', 'agent.customers', 'name.length', 'pin', '$absent'])
+def test_what_does_not_resolve_is_named_and_left_as_written(app, placeholder):
+    parts = preview(app, record=CUSTOMER, body=f'x [[{placeholder}]] y')
+    assert list(parts['missing']) == [placeholder]
+    assert parts['text'] == f'x [[{placeholder}]] y'
+
+
+def test_a_record_field_without_a_record_does_not_resolve(app):
+    assert list(preview(app, body='[[name]]')['missing']) == ['name']
+
+
+class NoPricing(NorthOnly):
+    def allows(self, permission, context):
+        return permission != 'pricing.read'
+
+    def conditions(self, permission, context):
+        return None
+
+
+def test_a_column_the_user_may_not_read_does_not_resolve(app, monkeypatch):
+    assert preview(app, record=CUSTOMER, body='[[margin]]')['text'] == '30'
+    monkeypatch.setattr(kitebase.access, '_guard', lambda: NoPricing())
+    assert list(preview(app, record=CUSTOMER, body='[[margin]]')['missing']) == ['margin']
+
+
+def test_a_record_the_user_cannot_see_is_not_found(app, monkeypatch):
+    monkeypatch.setattr(kitebase.access, '_guard', lambda: NorthOnly())
+    assert call(app, 'smtp_preview', message=message(
+        record={'model': 'Customer', 'id': 43}, body='[[name]]'))['status_code'] == 404
+
+
+def test_a_message_with_an_unresolved_placeholder_is_not_sent(app, smtpd):
+    result = call(app, 'smtp_send', message=message(record=CUSTOMER, body='[[nope]]'))
+    assert result['status_code'] == 400 and 'nope' in result['message']
+    assert smtpd[0].envelopes == []
+    with app.get_session() as s:
+        assert s.query(app.models['MailLog']).count() == 0
+
+
+def test_the_message_sent_is_filled_logged_filled_and_linked_to_its_record(app, smtpd):
+    result = call(app, 'smtp_send', message=message(
+        record=CUSTOMER, subject='For [[name]]', body='Agent [[agent.name]]'))
+    _envelope, msg = smtpd[0].last()
+    assert msg['Subject'] == 'For Riverside *Hardware*'
+    assert msg.get_body(('plain',)).get_content().strip() == 'Agent Carla Bianchi'
+    row = log(app, result['data']['id'])
+    assert (row.subject, row.body) == ('For Riverside *Hardware*', 'Agent Carla Bianchi')
+    assert [m['id'] for m in call(app, 'smtp_sent', model='Customer', id=42)['data']] == [
+        result['data']['id']]

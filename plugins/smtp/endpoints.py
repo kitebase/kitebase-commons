@@ -8,6 +8,11 @@ the user can read, or a label that is no model; attachments do not come from
 the client as references, since a reference is read on the server, beyond the
 permissions of whoever names it.
 
+`smtp_preview` is what a message would look like: subject, plain text and HTML
+with its placeholders filled, and the ones that do not resolve (`missing`),
+which the composer shows instead of being refused. The rendering is the
+server's, so what is seen is what is sent.
+
 `smtp_sent` is the mail of one record, newest first. The links are not read
 directly: the record is read first, with the user's permissions and record
 rules (404 when they do not reach it), and only then its links, for the
@@ -27,6 +32,7 @@ from kitebase.transforms import register_validator
 
 from smtp.accounts import names, validate_accounts
 from smtp.mailer import send
+from smtp.templates import compose, placeholders
 
 
 @endpoint('smtp_accounts', access='User.read')
@@ -66,6 +72,17 @@ def smtp_send(data):
         if isinstance(link, dict) and link.get('model'):
             check_readable(str(link['model']), link.get('id'))
     return {'status': 'success', 'code': 200, 'data': send(message)}
+
+
+@endpoint('smtp_preview', access='smtp.send')
+def smtp_preview(data):
+    message = data.get('message')
+    if not isinstance(message, dict):
+        raise Invalid(_("'message' is a mapping of to, subject, body..."))
+    parts = compose(message)
+    parts['placeholders'] = placeholders(
+        (message.get('subject') or '') + '\n' + (message.get('body') or ''))
+    return {'status': 'success', 'code': 200, 'data': parts}
 
 
 @endpoint('smtp_sent', access=access.PER_TABLE)
