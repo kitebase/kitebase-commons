@@ -1,0 +1,3 @@
+# Sending is an operation in itself: reading the log does not grant it.
+permissions:
+  smtp.send: { label: Send email }

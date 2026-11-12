@@ -1,0 +1,246 @@
+"""Sending a message: the one path the form, other plugins and jobs all take.
+
+    from smtp.mailer import send
+
+    send({
+        'account': 'office',                  # default: the user's first
+        'to': ['Ann <ann@example.com>'], 'cc': [], 'bcc': [],
+        'reply_to': None,                     # default: none, replies go to `from`
+        'subject': 'Invoice 1033',
+        'body': 'The invoice is **attached**.',   # markdown
+        'attachments': [{'media': 'books:2026/11/x.pdf'},
+                        {'name': 'notes.txt', 'content': b'...'}],
+        'receipt': True,                      # Disposition-Notification-To
+        'links': [{'model': 'Partner', 'id': 42, 'role': 'recipient'}],
+    })                                         # -> {'id', 'status', 'message_id'}
+
+The body is markdown: the plain text part is the markdown itself, the HTML
+part its rendering, with raw HTML off so whoever writes the text cannot put
+markup in the message. Attachments are copied into the folder of the log row,
+which then holds exactly what left; a `media` reference is read on the server,
+so this function trusts its caller with it, and the endpoint never passes one
+from the client.
+
+The row is written before the server is contacted and updated with the
+outcome. A server that refuses or does not answer leaves the row `failed`,
+with the reason, and raises Unavailable. Under `$dry_run` the message is
+written to `dry_run.eml` in the row's folder instead of being sent; under
+`$redirect_to` it goes to that address alone, and the row keeps both the
+recipients written and the address delivered to.
+"""
+import mimetypes
+import smtplib
+import ssl
+from email.message import EmailMessage
+from email.utils import formataddr, formatdate, getaddresses, make_msgid, parseaddr
+from typing import Any, Dict, Iterable, List, Tuple
+
+from markdown_it import MarkdownIt
+
+import kitebase.context
+import kitebase.utils
+from kitebase.apptime import now
+from kitebase.errors import Invalid, Unavailable
+from kitebase.i18n import _, _f
+from kitebase.media import AllocContext
+
+from smtp.accounts import Account, account, choose, options
+
+DEFAULT_TIMEOUT = 30
+DRY_RUN_FILE = 'dry_run.eml'
+
+_markdown = MarkdownIt('js-default')
+
+_HTML = """<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.5; color: #222;">
+{body}</body></html>
+"""
+
+
+def render(body: str) -> Tuple[str, str]:
+    """The two parts of a markdown body: plain text and HTML."""
+    text = body or ''
+    return text, _HTML.format(body=_markdown.render(text))
+
+
+def addresses(value: Any, field: str) -> List[str]:
+    """A recipient field as a list of addresses, each checked: Invalid names the
+    field and the address that is not one."""
+    if value is None:
+        return []
+    items = [value] if isinstance(value, str) else value
+    if not isinstance(items, list) or not all(isinstance(v, str) for v in items):
+        raise Invalid(_f("'{field}' is a list of addresses", field=field))
+    out = []
+    for item in items:
+        for name, addr in getaddresses([item]):
+            if '@' not in addr or ' ' in addr.strip():
+                raise Invalid(_f("'{value}' in {field} is not an email address",
+                                 value=item, field=field))
+            out.append(formataddr((name, addr)))
+    return out
+
+
+def _bare(addrs: Iterable[str]) -> List[str]:
+    return [parseaddr(a)[1] for a in addrs]
+
+
+def _timeout(app: Any) -> float:
+    section = (getattr(app.plugins, 'data', None) or {}).get('smtp') or {}
+    return float(section.get('timeout') or DEFAULT_TIMEOUT)
+
+
+def build(message: Dict[str, Any], acct: Account,
+          attachments: List[Tuple[str, bytes]]) -> EmailMessage:
+    """The MIME message, headers included; the envelope is the caller's."""
+    msg = EmailMessage()
+    sender = message.get('from') or acct.sender
+    msg['From'] = sender
+    for header, field in (('To', 'to'), ('Cc', 'cc')):
+        if message.get(field):
+            msg[header] = ', '.join(message[field])
+    if message.get('reply_to'):
+        msg['Reply-To'] = message['reply_to']
+    msg['Subject'] = message['subject']
+    msg['Date'] = formatdate(localtime=True)
+    domain = parseaddr(sender)[1].rpartition('@')[2] or None
+    msg['Message-ID'] = make_msgid(domain=domain)
+    if message.get('receipt'):
+        msg['Disposition-Notification-To'] = sender
+    text, html = render(message.get('body') or '')
+    msg.set_content(text)
+    msg.add_alternative(html, subtype='html')
+    for name, content in attachments:
+        mime = mimetypes.guess_type(name)[0] or 'application/octet-stream'
+        maintype, subtype = mime.split('/', 1)
+        msg.add_attachment(content, maintype=maintype, subtype=subtype, filename=name)
+    return msg
+
+
+def deliver(acct: Account, msg: EmailMessage, recipients: List[str], timeout: float) -> None:
+    """The SMTP conversation. Raises what smtplib raises."""
+    if acct.security == 'ssl':
+        server = smtplib.SMTP_SSL(acct.host, acct.port, timeout=timeout,
+                                  context=ssl.create_default_context())
+    else:
+        server = smtplib.SMTP(acct.host, acct.port, timeout=timeout)
+    with server:
+        if acct.security == 'starttls':
+            server.starttls(context=ssl.create_default_context())
+        if acct.user:
+            server.login(acct.user, acct.password or '')
+        server.send_message(msg, from_addr=parseaddr(acct.sender)[1], to_addrs=recipients)
+
+
+def _validated(message: Dict[str, Any]) -> Dict[str, Any]:
+    """The message with its recipients normalised; Invalid if it cannot leave."""
+    if not isinstance(message, dict):
+        raise Invalid(_('A message is a mapping of to, subject, body...'))
+    clean = dict(message)
+    for field in ('to', 'cc', 'bcc'):
+        clean[field] = addresses(message.get(field), field)
+    if not (clean['to'] or clean['cc'] or clean['bcc']):
+        raise Invalid(_('The message has no recipient'))
+    if clean.get('from'):
+        clean['from'] = addresses(clean['from'], 'from')[0]
+    if clean.get('reply_to'):
+        clean['reply_to'] = addresses(clean['reply_to'], 'reply_to')[0]
+    subject = clean.get('subject')
+    if not isinstance(subject, str) or not subject.strip():
+        raise Invalid(_('The message has no subject'))
+    if '\n' in subject or '\r' in subject:
+        raise Invalid(_('The subject is one line'))
+    links = clean.get('links') or []
+    if not isinstance(links, list) or not all(
+            isinstance(link, dict) and link.get('model') and link.get('id') is not None
+            for link in links):
+        raise Invalid(_("'links' is a list of {model, id, role}"))
+    clean['links'] = links
+    return clean
+
+
+def _attachments(app: Any, items: Any) -> List[Tuple[str, bytes]]:
+    """The attachments as (name, bytes), read before anything is written."""
+    if not items:
+        return []
+    if not isinstance(items, list):
+        raise Invalid(_("'attachments' is a list"))
+    out = []
+    for item in items:
+        if isinstance(item, dict) and item.get('media'):
+            ref = item['media']
+            with app.media.open(ref) as f:
+                out.append((item.get('name') or ref.rsplit('/', 1)[-1], f.read()))
+        elif isinstance(item, dict) and item.get('name') and isinstance(item.get('content'), bytes):
+            out.append((item['name'], item['content']))
+        else:
+            raise Invalid(_('An attachment is {media: ref} or {name, content}'))
+    return out
+
+
+def _store(app: Any, log_id: Any, files: List[Tuple[str, bytes]]) -> List[str]:
+    """Write the files into the row's folder; the names they were stored under."""
+    if not files:
+        return []
+    root = app.media.root('mail')
+    folder = root.folder(AllocContext('MailLog', 'files', log_id))
+    return [root.add_to_folder(folder, name, [content]).path.rsplit('/', 1)[-1]
+            for name, content in files]
+
+
+def _update(app: Any, log_id: Any, **values: Any) -> None:
+    MailLog = app.models['MailLog']
+    with app.get_session() as session:
+        row = session.get(MailLog, log_id)
+        for key, value in values.items():
+            setattr(row, key, value)
+        session.commit()
+
+
+def send(message: Dict[str, Any]) -> Dict[str, Any]:
+    """Send one message and log it; see the module's docstring."""
+    app = kitebase.utils.get_app()
+    clean = _validated(message)
+    acct = account(choose(clean.get('account')))
+    files = _attachments(app, clean.get('attachments'))
+    opts = options()
+    recipients = [opts['redirect_to']] if opts['redirect_to'] else \
+        _bare(clean['to'] + clean['cc'] + clean['bcc'])
+
+    MailLog, MailLink = app.models['MailLog'], app.models['MailLink']
+    context = kitebase.context.current() or {}
+    with app.get_session() as session:
+        row = MailLog(status='sending', account=acct.name,
+                      sender=clean.get('from') or acct.sender, reply_to=clean.get('reply_to'),
+                      to=clean['to'], cc=clean['cc'], bcc=clean['bcc'], delivered_to=recipients,
+                      subject=clean['subject'], body=clean.get('body') or '',
+                      receipt=bool(clean.get('receipt')), user_id=context.get('id'))
+        session.add(row)
+        session.flush()
+        for link in clean['links']:
+            session.add(MailLink(mail_log_id=row.id, model=str(link['model']),
+                                 record_id=str(link['id']), role=link.get('role')))
+        session.commit()
+        log_id = row.id
+
+    stored = _store(app, log_id, files)
+    msg = build(clean, acct, list(zip(stored, (content for _n, content in files))))
+    if opts['redirect_to']:
+        msg['X-Redirected-From'] = ', '.join(_bare(clean['to'] + clean['cc'] + clean['bcc']))
+
+    if opts['dry_run']:
+        _store(app, log_id, [(DRY_RUN_FILE, msg.as_bytes())])
+        status = 'dry_run'
+    else:
+        try:
+            deliver(acct, msg, recipients, _timeout(app))
+        except (smtplib.SMTPException, OSError) as e:
+            _update(app, log_id, status='failed', error=str(e), attachments=stored,
+                    message_id=msg['Message-ID'])
+            raise Unavailable(_f('The mail server did not take the message: {error}',
+                                 error=str(e)), data={'id': log_id})
+        status = 'sent'
+    _update(app, log_id, status=status, attachments=stored, message_id=msg['Message-ID'],
+            sent_at=now())
+    return {'id': log_id, 'status': status, 'message_id': msg['Message-ID']}

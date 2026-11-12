@@ -1,0 +1,33 @@
+from kitebase.i18n import register_translations
+
+register_translations('it', {
+    "No mail account '{name}'": "Nessun account di posta '{name}'",
+    "Mail account '{name}': {problem}": "Account di posta '{name}': {problem}",
+    'A message sent by the system names its account': "Un messaggio spedito dal sistema indica il suo account",
+    'You have no mail account to send from: ask the administrator':
+        "Non hai un account di posta da cui spedire: chiedilo all'amministratore",
+    "You may not send from the account '{name}'": "Non puoi spedire dall'account '{name}'",
+    'A list of account names is expected, such as ["office", "info"]':
+        'Serve una lista di nomi di account, come ["office", "info"]',
+    'Unknown mail account: {names}': 'Account di posta sconosciuto: {names}',
+    "'{field}' is a list of addresses": "'{field}' è una lista di indirizzi",
+    "'{value}' in {field} is not an email address": "'{value}' in {field} non è un indirizzo email",
+    'A message is a mapping of to, subject, body...': 'Un messaggio è una mappa di to, subject, body...',
+    'The message has no recipient': 'Il messaggio non ha destinatari',
+    'The message has no subject': "Il messaggio non ha l'oggetto",
+    'The subject is one line': "L'oggetto sta su una riga",
+    "'links' is a list of {model, id, role}": "'links' è una lista di {model, id, role}",
+    "'attachments' is a list": "'attachments' è una lista",
+    'An attachment is {media: ref} or {name, content}': 'Un allegato è {media: ref} oppure {name, content}',
+    'The mail server did not take the message: {error}': 'Il server di posta non ha accettato il messaggio: {error}',
+    "'message' is a mapping of to, subject, body...": "'message' è una mappa di to, subject, body...",
+    'Attachments are not accepted as references from the client':
+        'Il client non può indicare gli allegati per riferimento',
+    "No {model} {id}": "{model} {id} non trovato",
+    "'model' and 'id' name the record": "'model' e 'id' indicano il record",
+    'Send email': 'Spedire email',
+    'Mail': 'Email',
+    'Mail accounts': 'Account di posta',
+    'The accounts this user may send email from; the first one is the default.':
+        "Gli account da cui l'utente può spedire email; il primo è quello predefinito.",
+})

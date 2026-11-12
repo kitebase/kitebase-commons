@@ -1,0 +1,7 @@
+# The settings of the transport, the same in every installation unless its
+# config.yaml says otherwise. Accounts and the switches of a development
+# installation ($redirect_to, $dry_run) are in secrets/smtp.yaml instead.
+smtp:
+  # Seconds an SMTP server may take to answer: without a limit, a server that
+  # never answers holds the request, and its thread, forever.
+  timeout: 30

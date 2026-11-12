@@ -1,0 +1,179 @@
+# The log of the mail sent, and the records each message concerns.
+
+tables:
+
+  # One row per message, written before the SMTP conversation starts and
+  # updated with its outcome: a message that left is never missing from the
+  # log, even when the process dies right after.
+  MailLog:
+    name: mail_logs
+    label: "Mail"
+    help: The messages sent, with their recipients, their text and their outcome.
+    mixins: [TimeStamp]
+    display_field: subject
+    columns:
+      - name: id
+        type: ID
+
+      # sending (the row is written, the server has not answered yet), sent,
+      # failed (`error` says why), dry_run (written to a file, nothing sent).
+      - name: status
+        type: String
+        length: 16
+        nullable: False
+        default: "'sending'"
+        label: "Status"
+
+      # The name of the account in secrets/smtp.yaml.
+      - name: account
+        type: String
+        length: 64
+        label: "Account"
+
+      - name: sender
+        type: String
+        length: 255
+        label: "From"
+
+      - name: reply_to
+        type: String
+        length: 255
+        label: "Reply to"
+        query_rank: low
+
+      # The recipients the message was written to.
+      - name: to
+        type: Json
+        default: []
+        label: "To"
+      - name: cc
+        type: Json
+        default: []
+        label: "Cc"
+        query_rank: low
+      - name: bcc
+        type: Json
+        default: []
+        label: "Bcc"
+        query_rank: low
+
+      # The addresses the server was asked to deliver to: the recipients
+      # above, or the address of `$redirect_to` in a development installation.
+      - name: delivered_to
+        type: Json
+        default: []
+        label: "Delivered to"
+        query_rank: low
+
+      - name: subject
+        type: Text
+        label: "Subject"
+        searchable: true
+
+      - name: body
+        type: Markdown
+        label: "Text"
+
+      # The names of the files attached, in the order of the message. The files
+      # themselves are in the row's folder, `files`.
+      - name: attachments
+        type: Json
+        default: []
+        label: "Attachments"
+
+      # The row's folder: the files sent with the message and, for a dry run,
+      # the message itself as `dry_run.eml`.
+      - name: files
+        type: Files
+        root: mail
+        accept: [pdf, jpg, jpeg, png, gif, txt, csv, xlsx, xls, docx, doc, odt, ods, zip, eml]
+        label: "Files"
+
+      - name: receipt
+        type: Boolean
+        default: False
+        label: "Receipt requested"
+        query_rank: low
+
+      # The Message-ID header: what the recipient's server logs, and what a
+      # reply's In-Reply-To will name.
+      - name: message_id
+        type: String
+        length: 255
+        label: "Message-ID"
+        query_rank: more
+
+      - name: error
+        type: Text
+        label: "Error"
+
+      - name: sent_at
+        type: DateTime
+        granularity: second
+        label: "Sent"
+
+      # Who sent it; empty for the work of the system (a scheduled task).
+      - name: user_id
+        label: "User"
+        foreign_key:
+          target: User.id
+          relation: user
+          backref: mail_logs
+
+  # The records a message concerns: a many-to-many whose other side is any
+  # record of any table. `model` is the name of the model (Partner); a name
+  # that is no model is a label, written and read but never opened.
+  # `record_id` is text, so string keys fit as integer ones do, and is no
+  # foreign key: a deleted record leaves its links behind, and the log keeps
+  # the recipients anyway. Never read directly: `smtp_sent` reads the links of
+  # a record its caller can read (README.md).
+  MailLink:
+    name: mail_links
+    label: "Mail link"
+    columns:
+      - name: id
+        type: ID
+
+      - name: mail_log_id
+        label: "Mail"
+        nullable: False
+        foreign_key:
+          target: MailLog.id
+          owned: true
+          relation: mail_log
+          backref: links
+
+      - name: model
+        type: String
+        length: 64
+        nullable: False
+        label: "Table"
+
+      - name: record_id
+        type: String
+        length: 64
+        nullable: False
+        label: "Record"
+
+      # What the record is to the message: the recipient, the subject of it.
+      # Free, and optional.
+      - name: role
+        type: String
+        length: 32
+        label: "Role"
+
+    indexes:
+      - name: idx_mail_link_record
+        columns: [model, record_id]
+        description: "The mail of a record"
+
+  # The accounts a user may send from, names of secrets/smtp.yaml; the first
+  # is the one a message without an account goes out from.
+  User:
+    columns:
+      - name: mail_accounts
+        type: ShortSet
+        label: "Mail accounts"
+        help: The accounts this user may send email from; the first one is the default.
+        choices_endpoint: smtp_accounts
+        validate: smtp_accounts

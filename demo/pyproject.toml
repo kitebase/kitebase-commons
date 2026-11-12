@@ -32,3 +32,8 @@ package = false
 kitebase = { path = "../../server", editable = true }
 # A checkout of andrep beside kitebase, cloned into the workspace.
 andrep = { path = "../../andrep/renderer", editable = true }
+
+# The tests of the shared plugins run here: `uv run pytest ../plugins/<name>/tests`.
+# aiosmtpd is the SMTP server the email plugin's tests send to.
+[dependency-groups]
+dev = ["pytest", "aiosmtpd"]

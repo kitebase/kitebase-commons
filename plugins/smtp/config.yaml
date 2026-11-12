@@ -1,0 +1,13 @@
+# Outgoing mail: a message described as a dict, sent through an SMTP account,
+# and a log of what left and from which records.
+#
+# The accounts are the system administrator's, in `secrets/smtp.yaml`; which
+# accounts a user may send from is the application administrator's, in the
+# `mail_accounts` column this plugin adds to `User`. See README.md.
+name: smtp
+version: 0.0.1
+description: Outgoing mail through SMTP accounts, with the log of what was sent
+license: MIT
+author: "Claudio Driussi"
+url: https://claudiodriussi.it
+depends_on: [users]
