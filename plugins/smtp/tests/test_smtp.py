@@ -492,3 +492,9 @@ def test_the_message_sent_is_filled_logged_filled_and_linked_to_its_record(app, 
     assert (row.subject, row.body) == ('For Riverside *Hardware*', 'Agent Carla Bianchi')
     assert [m['id'] for m in call(app, 'smtp_sent', model='Customer', id=42)['data']] == [
         result['data']['id']]
+
+
+def test_the_plain_text_reads_without_the_escapes_an_editor_writes(app):
+    parts = preview(app, record=CUSTOMER, body='a\\_b &amp; c \\*d\\* [[name]]')
+    assert parts['text'] == 'a_b & c *d* Riverside *Hardware*'
+    assert '<p>a_b &amp; c *d* Riverside *Hardware*</p>' in parts['html']

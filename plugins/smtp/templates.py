@@ -16,11 +16,12 @@ user may not read does not resolve. A template cannot show what the form
 would not.
 
 The body is markdown. Its plain text part is the markdown with the values put
-in as they are; its HTML part renders the markdown with the values escaped, so
+in as they are, and without the escapes an editor writes (`a\\_b`, `&amp;`); its HTML part renders the markdown with the values escaped, so
 a `*` in a customer's name stays a star and does not start emphasis. Raw HTML
 is off in the rendering, so whoever writes the text cannot put markup in the
 message.
 """
+import html
 import re
 from datetime import date, datetime
 from decimal import Decimal
@@ -40,6 +41,9 @@ PLACEHOLDER = re.compile(r'\[\[\s*(\$?[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*\]\]')
 # ASCII punctuation markdown may read as syntax: escaped with a backslash, which
 # the rendering removes again
 _MARKDOWN_PUNCTUATION = re.compile(r'([\\`*_{}\[\]<>()#+\-.!|~])')
+
+# A backslash before ASCII punctuation, as markdown escapes it
+_BACKSLASH_ESCAPE = re.compile(r'\\([!-/:-@\[-`{-~])')
 
 _DATE_FORMATS = {'it': ('%d/%m/%Y', '%d/%m/%Y %H:%M')}
 
@@ -173,6 +177,13 @@ def substitute(text: Optional[str], values: Dict[str, str], escape: bool = False
     return PLACEHOLDER.sub(one, text or '')
 
 
+def plain(markdown: Optional[str]) -> str:
+    """The markdown as a person reads it in a plain text message: without the
+    backslash escapes and the HTML entities an editor writes (`a\\_b`,
+    `A &amp; B`), which are syntax, not text."""
+    return html.unescape(_BACKSLASH_ESCAPE.sub(r'\1', markdown or ''))
+
+
 def render_html(markdown: str) -> str:
     """The HTML part of a markdown body."""
     return _HTML.format(body=_markdown.render(markdown or ''))
@@ -186,7 +197,7 @@ def compose(message: Dict[str, Any]) -> Dict[str, Any]:
     values, missing = resolve(names, message.get('record'), message.get('params'))
     return {
         'subject': ' '.join(substitute(subject, values).split()),
-        'text': substitute(body, values),
+        'text': substitute(plain(body), values),
         'html': render_html(substitute(body, values, escape=True)),
         'missing': missing,
     }
