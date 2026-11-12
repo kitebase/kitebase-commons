@@ -150,6 +150,21 @@ record with the caller's permissions and record rules: a 403 without the
 table's `read`, a 404 when a rule hides the record. Only then does it return
 the mail linked to it, newest first. The mail of a label needs `MailLog.read`.
 
+## A text with its values: what a template is today
+
+A template is a subject and a body with placeholders, written in the form or
+given by whoever opens it: a command's `params` (`subject`, `body`), or the
+values a plugin passes to `compose_action`. The placeholders are filled per
+record when the message leaves, so one text serves one record (compose) or
+many (merge). The editor offers the placeholders a page lists, and the
+fields of the form that are not part of the message are the `[[$name]]`
+parameters: a reminder that says "[[$invoices]] invoices, [[$total]] due"
+draws two fields the operator may change before sending.
+
+Templates kept apart from the text, to be picked from a list, do not exist
+yet: when they come they will be files in the plugins, versioned with git,
+plus a few written by the users in the interface.
+
 ## Writing from the interface
 
 Three commands put the plugin on any list, each a `navigator` command (the
@@ -162,19 +177,13 @@ demo's `demo_mail` plugin puts them on the partners):
 ```
 
 - **Write an email** opens the compose form, a form without a model, with a
-  draft the server prepares: the user's first account and the record's
-  address when its table has an `email` column. Sending it closes the form.
-  A refusal, such as an address that is not one, keeps it open with what was
-  written.
+  draft the server prepares: the user's first account and the record's main
+  address. Its To field (`smtp.recipients`) has a button that lists all the
+  record's addresses to tick (below). Sending it closes the form; a refusal,
+  such as an address that is not one, keeps it open with what was written.
 - **Email sent** lists the mail about the record, newest first, with the
   message under the cursor beside it: its addresses, its text, its files.
-- **Mail merge** takes the ticked rows. The form says who will receive the
-  message and who has no address. Every message is prepared before any
-  leaves, so one placeholder that does not resolve for one record sends
-  nothing. Then the messages leave one after the other, sharing the
-  attachments. *Keep a log of the messages* off sends without a row in the
-  log. The sending happens in the request, which is right for tens of
-  messages; thousands, and a provider's quotas, are the work of a job.
+- **Mail merge**: one text to every ticked row (next section).
 
 `page` names the form, so a context can give its own: a page whose content
 refers to `views.smtp_compose_form` (or `smtp_merge_form`) and replaces its
@@ -186,9 +195,86 @@ layout, typically to offer the placeholders of its table:
   placeholders: [{ name: name, label: Name }, { name: city, label: City }]
 ```
 
-Any field of the form that is not part of the message is a parameter of the
-text, read by `[[$name]]`. Another plugin's command that computes values
-opens the form with them through `compose_action(record, page, **values)`.
+Without `page` the plugin's own form opens: the placeholders work the same,
+typed by hand. Another plugin's command that computes values opens the form
+with them through `compose_action(record, page, **values)`.
+
+The plugin also brings `smtp_log`, every message sent with the same detail,
+for whoever reads `MailLog`. Like every page of the commons it is in no menu
+until the application puts it there.
+
+## Mail merge on any table
+
+The merge knows no table. The command passes the list's table and the
+ticked ids; each record is read with the user's permissions, gives its
+addresses and fills the placeholders of its own message. Putting it on
+another list is the command alone:
+
+```yaml
+views:
+  member_table:
+    navigator:
+      commands:
+        - { id: mail_merge, label: Mail merge, scope: global, endpoint: smtp_merge }
+```
+
+The form says how many messages leave, to how many addresses, and which
+records are skipped and why, and says it again when the operator changes whom
+inside each record. Every message is prepared before any leaves, so one
+placeholder that does not resolve for one record sends nothing and names the
+records. Then the messages leave one after the other, sharing the
+attachments, and the summary says how it went. *Keep a log of the messages*
+off sends without a row in the log.
+
+A record with several addresses gets one message with all of them in To, so
+colleagues see each other. *One message per contact* sends each address a
+message of its own, whose placeholders read the row the address belongs to:
+`[[name]]` is the person, `[[parent.name]]` the company. The record ticked is
+linked to every message either way.
+
+The sending happens in the request, which is right for tens of messages;
+thousands, and a provider's quotas, are the work of a job.
+
+## Whom inside a record
+
+A record with an `email` column has one address. A record that stands for an
+organisation has more: its own and its contacts', each doing something there
+(technical office, accounts). `smtp` does not know what a partner is; the
+plugin that does registers, per table, how to list them:
+
+```python
+from smtp.addresses import register_addresses
+
+def partner_addresses(record_id):
+    return [{'model': 'Partner', 'id': 3, 'name': 'Northwind Trading',
+             'email': 'info@northwind.example', 'main': True},
+            {'model': 'Partner', 'id': 6, 'name': 'Ross, Mark',
+             'email': 'ross@northwind.example', 'functions': ['TEC', 'WHS'],
+             'note': 'Technical office, Warehouse'}]
+
+def partner_functions():
+    return [{'value': 'TEC', 'label': 'Technical office'}, ...]
+
+register_addresses('Partner', partner_addresses, partner_functions)
+```
+
+`model` and `id` are the row the address belongs to. `main` is the address a
+message goes to when nothing else is asked; with none marked, the first.
+`note` is what the dialog shows beside the name. An address whose `email`
+column the user may not read is dropped, whatever the provider says. In the
+demo the provider is `demo_mail`'s, a plugin of its own because neither
+`partners` nor `smtp` knows the other.
+
+Then a message can ask for functions instead of people:
+
+- the compose dialog has a button per function held, which ticks its holders;
+- the merge form takes `functions` and `fallback` fields (the variant draws
+  them, since the vocabulary is the application's);
+- a command may preset them: `params: { functions: [ADM], fallback: main }`.
+
+When nobody in a record holds the functions asked, `fallback: main` writes to
+the main address (an invoice must arrive) and `skip` writes nothing (a
+technical newsletter). The summary names the records of each case.
 
 ## Tests
 
