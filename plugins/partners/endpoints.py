@@ -1,4 +1,5 @@
-"""The roles of a partner as the form offers them, and the check on what it saves.
+"""The roles of a partner and the functions of a contact, as the form offers
+them, and the check on what it saves.
 
 `partner_roles` is the vocabulary the roles field picks from: the rows of
 `PartnerRole` in their order, each as a choice of the checklist. Who reads the
@@ -14,6 +15,9 @@ taken away, for the active row or the ticked ones, and `partner_roles_change`
 does the picked entry. Each record is written by the update of `db`, so the
 validator, the row's access and the table's rules hold as they do in the form;
 a record a rule stops (a question, a refusal) is left as it was, and named.
+
+`partner_functions` is the same pair for `Partner.functions`, on the rows of
+`PartnerFunction`.
 """
 from typing import Any, Dict, List, Optional
 
@@ -27,34 +31,63 @@ from kitebase.i18n import _, _f
 from kitebase.transforms import register_validator
 
 
-def _roles() -> List[Any]:
+def _codes(model: str) -> List[Any]:
+    """The rows of a vocabulary table (PartnerRole, PartnerFunction) in their order."""
     app = kitebase.utils.get_app()
-    Role = app.models['PartnerRole']
+    Table = app.models[model]
     with app.get_session() as session:
-        rows = session.query(Role).order_by(Role.sequence, Role.id).all()
+        rows = session.query(Table).order_by(Table.sequence, Table.id).all()
         return [(r.id, r.label) for r in rows]
+
+
+def _roles() -> List[Any]:
+    return _codes('PartnerRole')
+
+
+def _choices(model: str) -> Dict[str, Any]:
+    return {'status': 'success', 'code': 200,
+            'data': [{'value': code, 'label': label or code} for code, label in _codes(model)]}
+
+
+def _unknown(model: str, value: List[str]) -> List[str]:
+    declared = {code for code, _label in _codes(model)}
+    return [c for c in value if c not in declared]
+
+
+def _is_codes(value: Any) -> bool:
+    return isinstance(value, list) and all(isinstance(c, str) for c in value)
 
 
 @endpoint('partner_roles', access='PartnerRole.read')
 def partner_roles(data):
-    choices: List[Dict[str, Any]] = [{'value': code, 'label': label or code}
-                                     for code, label in _roles()]
-    return {'status': 'success', 'code': 200, 'data': choices}
+    return _choices('PartnerRole')
 
 
 def validate_roles(value: Any, record: Dict[str, Any]) -> Optional[str]:
     if value is None:
         return None
-    if not isinstance(value, list) or not all(isinstance(c, str) for c in value):
+    if not _is_codes(value):
         return _('A list of role codes is expected, such as ["C", "S"]')
-    declared = {code for code, _label in _roles()}
-    unknown = [c for c in value if c not in declared]
-    if unknown:
-        return _('Unknown role: {codes}').format(codes=', '.join(unknown))
-    return None
+    unknown = _unknown('PartnerRole', value)
+    return _('Unknown role: {codes}').format(codes=', '.join(unknown)) if unknown else None
+
+
+@endpoint('partner_functions', access='PartnerFunction.read')
+def partner_functions(data):
+    return _choices('PartnerFunction')
+
+
+def validate_functions(value: Any, record: Dict[str, Any]) -> Optional[str]:
+    if value is None:
+        return None
+    if not _is_codes(value):
+        return _('A list of function codes is expected, such as ["TEC", "ADM"]')
+    unknown = _unknown('PartnerFunction', value)
+    return _('Unknown function: {codes}').format(codes=', '.join(unknown)) if unknown else None
 
 
 register_validator('partner_roles', validate_roles)
+register_validator('partner_functions', validate_functions)
 
 
 # ── Giving and taking away a role, from a list ──────────────────────────────

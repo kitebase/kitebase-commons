@@ -7,7 +7,7 @@ views:
       commands:
         - id: write_email
           label: Write an email
-          help: Opens an email to the selected partner, from one of your accounts.
+          help: Opens an email to the selected partner, from one of your accounts; its contacts can be picked by function.
           scope: row
           endpoint: smtp_compose
           params: { page: partner_compose }
@@ -18,7 +18,7 @@ views:
           endpoint: smtp_sent_page
         - id: mail_merge
           label: Mail merge
-          help: One text to every ticked partner, each message with the partner's own values.
+          help: One text to every ticked partner, each message with the partner's own values, to the partner or to its contacts holding a function.
           scope: global
           endpoint: smtp_merge
           params: { page: partner_merge }
@@ -43,6 +43,7 @@ pages:
               required: true
             - name: to
               label: To
+              widget: smtp.recipients
             - name: cc
               label: Cc
             - name: subject
@@ -83,9 +84,22 @@ pages:
               widget: combobox
               choices_endpoint: smtp_my_accounts
               required: true
+            # Whom inside each partner: the contacts holding one of these
+            # functions; with none ticked, the partner's own address
+            - name: functions
+              label: To the contacts with function
+              choices_endpoint: partner_functions
+              widget: checklist
+            - name: fallback
+              label: When nobody holds it
+              widget: combobox
+              same_row: true
+              choices:
+                - { value: main, label: Write to the partner }
+                - { value: skip, label: Skip the partner }
             - name: recipients
               label: Recipients
-              readonly: true
+              widget: smtp.mergerecipients
             - name: subject
               label: Subject
               required: true
@@ -100,6 +114,10 @@ pages:
             - name: attachments
               label: Attachments
               widget: smtp.attachments
+            - name: per_contact
+              label: One message per contact
+              type: Boolean
+              help: Each address gets a message of its own, whose placeholders read the contact; [[parent.name]] is the partner.
             - name: keep_log
               label: Keep a log of the messages
               type: Boolean

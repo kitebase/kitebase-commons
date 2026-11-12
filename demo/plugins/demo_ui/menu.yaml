@@ -23,9 +23,14 @@ menu_items:
   suppliers:  { label: Suppliers,     icon: truck,      parent: partners, order: 20, action: stack_push, panel: supplier_list }
   registry:   { label: All partners,  icon: book-user,  parent: partners, order: 30, action: stack_push, panel: partner_list }
   roles:      { label: Partner roles, icon: tags,       parent: partners, order: 90, action: stack_push, panel: partnerrole_list }
+  functions:  { label: Contact functions, icon: briefcase, parent: partners, order: 92, action: stack_push, panel: partnerfunction_list }
   # Proves the plugin-owned component path end to end: the .svelte lives in the
   # shared root, not in the client.
   personname: { label: Person name,   icon: user-pen,   parent: partners, order: 95, action: stack_push, panel: person_name_demo }
 
   # ── Administration ────────────────────────────────────────────────────────
   users:  { label: Users,         icon: users,     parent: administration, order: 10, action: stack_push, panel: user_list }
+  # Every message sent (smtp), and every table through its generated list
+  # and form, for maintenance (tables)
+  maillog: { label: Email log,    icon: mail,      parent: administration, order: 20, action: stack_push, panel: smtp_log }
+  tables: { label: Tables,        icon: table,     parent: administration, order: 90, action: stack_push, panel: tables_browser }

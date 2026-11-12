@@ -51,6 +51,15 @@ def seed(app, model):
                 model.PartnerRole(id="S", label="Supplier", sequence=20),
             ])
 
+        # The functions of a contact: who, inside a partner, the technical
+        # documents and the invoices go to
+        if not session.query(model.PartnerFunction).first():
+            session.add_all([
+                model.PartnerFunction(id="TEC", label="Technical office", sequence=10),
+                model.PartnerFunction(id="ADM", label="Accounts", sequence=20),
+                model.PartnerFunction(id="WHS", label="Warehouse", sequence=30),
+            ])
+
         if not session.query(model.Partner).first():
             session.add_all([
                 model.Partner(kind="person", name="Smith, John", roles=["C"],
@@ -58,8 +67,18 @@ def seed(app, model):
                 model.Partner(kind="organization", name="Riverside Hardware Ltd",
                               roles=["S"], city="Leeds"),
                 # Both at once — the case that makes one table worth having.
+                # With contacts holding functions: a technical document reaches
+                # Ross, an invoice reaches White.
                 model.Partner(kind="organization", name="Northwind Trading",
-                              roles=["C", "S"], city="Hull"),
+                              roles=["C", "S"], city="Hull", email="info@northwind.example",
+                              children=[
+                                  model.Partner(kind="person", usage="contact",
+                                                name="Ross, Mark", email="ross@northwind.example",
+                                                functions=["TEC", "WHS"]),
+                                  model.Partner(kind="person", usage="contact",
+                                                name="White, Anna", email="white@northwind.example",
+                                                functions=["ADM"]),
+                              ]),
                 # No role yet: reachable only from the unfiltered list, which is
                 # where a subject is promoted to customer or supplier.
                 model.Partner(kind="person", name="Doe, Jane", city="York"),

@@ -14,10 +14,12 @@ which the composer shows instead of being refused. The rendering is the
 server's, so what is seen is what is sent.
 
 `smtp_compose` opens the compose form, from a command (a row's `table` and
-`id`, the record the message is about) or from anywhere: the answer is an
+`id`, the record the message is about; `functions` and `fallback`, whom
+inside it, addresses.py) or from anywhere: the answer is an
 `open_form` with the draft the server prepares (`compose_action`). The form
 has no model; its save, `smtp_compose_send`, sends the message, and a refusal
 (an address that is not one) leaves the form open with what was written.
+`smtp_addresses` lists a record's addresses, for the dialog of the To field.
 
 `smtp_sent` is the mail of one record, newest first; `smtp_sent_page`, a
 row command, opens the page that lists it (the `smtp_sent` page). The links are not read
@@ -25,8 +27,8 @@ directly: the record is read first, with the user's permissions and record
 rules (404 when they do not reach it), and only then its links, for the
 system. Whoever sees the record sees the mail about it, and nothing else.
 """
-from email.utils import formataddr, parseaddr
-from typing import Any, Dict, List, Optional
+from email.utils import parseaddr
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import inspect
 
@@ -41,6 +43,7 @@ from kitebase.i18n import _, _f
 from kitebase.transforms import register_validator
 
 from smtp import outbox
+from smtp.addresses import check_choice, choose, formatted, functions_of, of_record
 from smtp.accounts import names, of_user, options, validate_accounts
 from smtp.mailer import addresses, send
 from smtp.templates import compose, placeholders
@@ -110,33 +113,22 @@ MESSAGE_FIELDS = ('account', 'to', 'cc', 'bcc', 'reply_to', 'subject', 'body', '
                   'attachments', 'record')
 
 
-def _recipient(model: str, record_id: Any) -> Optional[str]:
-    """The address of a record that has an `email` column: `Name <address>`,
-    the name being the record's display field."""
-    app = kitebase.utils.get_app()
-    table = app.tables.get(model)
-    if table is None or not any(c.name == 'email' for c in table.effective_columns):
-        return None
-    if 'email' in access.unreadable_columns(model, app) or 'email' in table.secret_columns:
-        return None
-    Model = app.models[model]
-    key = inspect(Model).primary_key[0].key
-    with app.get_session() as session:
-        row = session.get(Model, coerce_value(Model, key, record_id))
-        address = getattr(row, 'email', None) if row is not None else None
-        if not address:
-            return None
-        display = kitebase.utils.search_info(table).get('display_field') or ''
-        name = getattr(row, display, None) if display and display != 'email' else None
-        return formataddr((str(name), address)) if name else address
+def _recipient(model: str, record_id: Any, functions: Optional[List[str]] = None,
+               fallback: str = 'main') -> Tuple[Optional[str], str]:
+    """The To of a message about a record, as text, and how its addresses
+    were chosen (addresses.choose)."""
+    rows, outcome = choose(of_record(model, record_id), functions, fallback)
+    return (', '.join(formatted(r) for r in rows) or None), outcome
 
 
 def compose_action(record: Optional[Dict[str, Any]] = None, page: str = 'smtp_compose',
-                   title: Optional[str] = None, **values: Any) -> Dict[str, Any]:
+                   title: Optional[str] = None, functions: Optional[List[str]] = None,
+                   fallback: str = 'main', **values: Any) -> Dict[str, Any]:
     """The answer that opens the compose form with a draft: the account the
-    user sends from first, the record's address when the record has one, and
-    `values` over them (subject, body, the parameters of the text...). For
-    another plugin's command that computes what the message says."""
+    user sends from first, the record's addresses (the main one, or the
+    contacts holding one of `functions`), and `values` over them (subject,
+    body, the parameters of the text...). For another plugin's command that
+    computes what the message says."""
     user = (kitebase.context.current() or {}).get('id')
     accounts = of_user(user) if user is not None else []
     draft: Dict[str, Any] = {'account': accounts[0] if accounts else None,
@@ -144,9 +136,9 @@ def compose_action(record: Optional[Dict[str, Any]] = None, page: str = 'smtp_co
     if record:
         check_readable(str(record['model']), record['id'])
         draft['record'] = {'model': record['model'], 'id': record['id']}
-        address = _recipient(str(record['model']), record['id'])
-        if address:
-            draft['to'] = address
+        to, _outcome = _recipient(str(record['model']), record['id'], functions, fallback)
+        if to:
+            draft['to'] = to
     draft.update(values)
     return {'action': 'open_form', 'page': page, 'draft': {'values': draft},
             'title': title or _('Write an email')}
@@ -159,8 +151,41 @@ def smtp_compose(data):
     record = ({'model': data['table'], 'id': data['id']}
               if data.get('table') and data.get('id') is not None else None)
     values = {k: data[k] for k in ('subject', 'body', 'to') if data.get(k) is not None}
+    functions, fallback = check_choice(data.get('functions'), data.get('fallback'))
     return {'status': 'success', 'code': 200,
-            'data': compose_action(record, page=data.get('page') or 'smtp_compose', **values)}
+            'data': compose_action(record, page=data.get('page') or 'smtp_compose',
+                                   functions=functions, fallback=fallback, **values)}
+
+
+@endpoint('smtp_addresses', access='smtp.send')
+def smtp_addresses(data):
+    """The addresses of a record, for the dialog of the To field: one row per
+    address, `to` being how the field writes it, and the functions some of
+    them hold, to tick them by."""
+    model, record_id = data.get('model'), data.get('id')
+    if not model or record_id is None:
+        raise Invalid(_("'model' and 'id' name the record"))
+    if not check_readable(str(model), record_id):
+        return {'status': 'success', 'code': 200, 'data': {'addresses': [], 'functions': []}}
+    rows = of_record(str(model), record_id)
+    held = {f for r in rows for f in r['functions']}
+    return {'status': 'success', 'code': 200, 'data': {
+        'addresses': [{**r, 'to': formatted(r)} for r in rows],
+        'functions': [f for f in functions_of(str(model)) if f.get('value') in held]}}
+
+
+def _recipient_links(record: Dict[str, Any], to: Any) -> List[Dict[str, Any]]:
+    """The rows of the record's addresses the message goes to, other than the
+    record itself: a contact picked in the dialog sees the message among its
+    mail sent."""
+    try:
+        wanted = {parseaddr(a)[1].lower() for a in addresses(to, 'to')}
+    except Invalid:
+        return []
+    return [{'model': r['model'], 'id': r['id'], 'role': 'recipient'}
+            for r in of_record(str(record['model']), record['id'])
+            if r['email'].lower() in wanted
+            and (r['model'], str(r['id'])) != (record['model'], str(record['id']))]
 
 
 @endpoint('smtp_compose_send', access='smtp.send')
@@ -175,8 +200,10 @@ def smtp_compose_send(data):
     params = {k: v for k, v in draft.items() if k not in MESSAGE_FIELDS}
     if params:
         message['params'] = params
-    for link in [message.get('record')] if message.get('record') else []:
-        check_readable(str(link['model']), link['id'])
+    record = message.get('record')
+    if record:
+        check_readable(str(record['model']), record['id'])
+        message['links'] = _recipient_links(record, message.get('to'))
     result = send(message, trusted=False)
     opts = options()
     if result['status'] == 'dry_run':

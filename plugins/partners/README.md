@@ -80,6 +80,21 @@ code branches on those values — invoice printing looks for `invoice` — and a
 value no code knows about is inert. A registry would promise an extensibility
 that does not exist, and charge a join on every child row for it.
 
+## Functions of a contact
+
+Inside a partner a project specification goes to the technical office and an
+invoice to accounts. `Partner.functions` says what a contact does there: a
+`ShortSet` on the rows of `PartnerFunction` (`choices_endpoint` and validator
+`partner_functions`), exactly as `roles` is on `PartnerRole`. A set, because
+one person can be the technical office and the warehouse at once, and a second
+row for the same person would let two copies of their phone drift apart.
+
+The codes are the application's, seeded like the roles and added from the UI.
+What reads them is a command that needs a stable code (`smtp` writing to the
+contacts holding `ADM`), which is why they are neither tags, which classify and
+compute nothing, nor values of `usage`, which is closed and owned by the code:
+an `invoice` row is an address, not an office.
+
 ## Person or organization
 
 `kind` is the one discriminator everything shares: the form reads it to render

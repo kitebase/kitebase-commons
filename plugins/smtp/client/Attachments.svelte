@@ -108,7 +108,7 @@
     gap: 0.25rem;
     padding: 0.125rem 0.5rem;
     border-radius: 0.25rem;
-    background: var(--kb-surface-subtle);
+    background: var(--kb-surface);
     border: 1px solid var(--kb-border);
     color: var(--kb-text);
     font-size: 0.875rem;

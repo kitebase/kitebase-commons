@@ -281,9 +281,9 @@ def test_a_message_that_cannot_leave_is_refused_and_not_logged(app, bad):
 
 
 def test_a_server_that_does_not_answer_leaves_a_failed_row(app, smtpd):
-    data = yaml.safe_load((app.root / 'secrets' / 'smtp.yaml').read_text())
+    data = yaml.safe_load((app.root / 'secrets' / 'smtp.yaml').read_text(encoding='utf-8'))
     data['office']['port'] = free_port()          # nobody listens there
-    (app.root / 'secrets' / 'smtp.yaml').write_text(yaml.safe_dump(data, sort_keys=False))
+    (app.root / 'secrets' / 'smtp.yaml').write_text(yaml.safe_dump(data, sort_keys=False), encoding='utf-8')
     result = call(app, 'smtp_send', message=message())
     assert result['status_code'] == 503, result
     with app.get_session() as s:
@@ -361,9 +361,9 @@ def test_dry_run_writes_the_message_and_sends_nothing(app, smtpd):
 
 def test_check_says_while_a_switch_is_on_and_when_an_account_is_broken(app, smtpd):
     write_secrets(app, smtpd, dry_run=True, redirect_to='dev@example.com')
-    data = yaml.safe_load((app.root / 'secrets' / 'smtp.yaml').read_text())
+    data = yaml.safe_load((app.root / 'secrets' / 'smtp.yaml').read_text(encoding='utf-8'))
     data['broken'] = {'host': 'x', 'from': 'x@example.com', 'user': 'only-user'}
-    (app.root / 'secrets' / 'smtp.yaml').write_text(yaml.safe_dump(data, sort_keys=False))
+    (app.root / 'secrets' / 'smtp.yaml').write_text(yaml.safe_dump(data, sort_keys=False), encoding='utf-8')
     issues = {i['code']: i for i in run_checks(app) if i['code'].startswith('smtp')}
     assert issues['smtp-dry-run']['severity'] == 'warning'
     assert issues['smtp-redirect']['severity'] == 'warning'
@@ -646,7 +646,7 @@ def test_the_merge_command_says_who_receives_and_who_has_no_address(app):
     action = call(app, 'smtp_merge', table='Customer', ids=[42, 43, 44])['data']
     assert (action['action'], action['page']) == ('open_form', 'smtp_merge')
     values = action['draft']['values']
-    assert values['recipients'] == '2 recipients. Without an address, skipped: Lakeside'
+    assert values['recipients'] == 'Messages: 2, addresses: 2. Without an address, skipped: Lakeside'
     assert (values['model'], values['ids'], values['keep_log']) == ('Customer', [42, 43, 44], True)
 
 
@@ -683,3 +683,126 @@ def test_a_message_that_cannot_leave_stops_the_whole_merge(app, smtpd):
 
 def test_a_merge_needs_a_record_with_an_address(app):
     assert merge(app, ids=[44])['status_code'] == 400
+
+
+# ── Whom inside a record: addresses and functions ────────────────────────────
+
+@pytest.fixture
+def contacts(app, monkeypatch):
+    """Customer 42 has two contacts, Agents 1 (accounts) and 2 (technical
+    office and warehouse); the other customers have no provider's rows but
+    their own email, as a model without a provider."""
+    import smtp.addresses as addresses
+    with app.get_session() as s:
+        s.add(app.models['Agent'](id=2, name='Dario Rossi'))
+        s.commit()
+
+    def customer(record_id):
+        if int(record_id) != 42:
+            row = addresses.own('Customer', record_id)
+            return [row] if row else []
+        return [{'model': 'Customer', 'id': 42, 'name': 'Riverside',
+                 'email': 'orders@riverside.example', 'main': True},
+                {'model': 'Agent', 'id': 1, 'name': 'Carla Bianchi',
+                 'email': 'carla@riverside.example', 'functions': ['ADM'], 'note': 'Accounts'},
+                {'model': 'Agent', 'id': 2, 'name': 'Dario Rossi',
+                 'email': 'dario@riverside.example', 'functions': ['TEC', 'WHS']},
+                {'model': 'Agent', 'id': 3, 'name': 'No address'}]
+    monkeypatch.setitem(addresses._providers, 'Customer', customer)
+    monkeypatch.setitem(addresses._functions, 'Customer', lambda: [
+        {'value': 'TEC', 'label': 'Technical office'}, {'value': 'ADM', 'label': 'Accounts'},
+        {'value': 'WHS', 'label': 'Warehouse'}, {'value': 'BUY', 'label': 'Purchasing'}])
+
+
+def rows(*specs):
+    return [{'name': n, 'email': f'{n}@x.example', 'functions': f, 'main': m}
+            for n, f, m in specs]
+
+
+def test_choose_the_main_address_unless_functions_are_asked():
+    from smtp.addresses import choose
+    found = rows(('main', [], True), ('carla', ['ADM'], False), ('dario', ['TEC', 'WHS'], False))
+    assert [r['name'] for r in choose(found)[0]] == ['main']
+    assert [r['name'] for r in choose(found, ['WHS', 'ADM'])[0]] == ['carla', 'dario']
+    assert choose(found, ['XYZ'])[0][0]['name'] == 'main'
+    assert choose(found, ['XYZ'])[1] == 'fallback'
+    assert choose(found, ['XYZ'], 'skip') == ([], 'skipped')
+    assert choose(rows(('first', [], False), ('second', [], False)))[0][0]['name'] == 'first'
+
+
+def test_the_addresses_of_a_record_for_the_dialog(app, contacts):
+    data = call(app, 'smtp_addresses', model='Customer', id=42)['data']
+    # The functions somebody holds, in the vocabulary's order, to tick them by
+    assert [f['value'] for f in data['functions']] == ['TEC', 'ADM', 'WHS']
+    assert [(r['to'], r['functions'], r['main']) for r in data['addresses']] == [
+        ('Riverside <orders@riverside.example>', [], True),
+        ('Carla Bianchi <carla@riverside.example>', ['ADM'], False),
+        ('Dario Rossi <dario@riverside.example>', ['TEC', 'WHS'], False)]
+    data = call(app, 'smtp_addresses', model='Customer', id=43)['data']
+    assert [r['to'] for r in data['addresses']] == ['Hillside <info@hillside.example>']
+    assert data['functions'] == []
+
+
+def test_compose_writes_to_the_contacts_holding_the_function(app, contacts):
+    values = lambda **p: call(app, 'smtp_compose', table='Customer', id=42, **p)[
+        'data']['draft']['values']
+    assert values(functions=['ADM'])['to'] == 'Carla Bianchi <carla@riverside.example>'
+    assert values(functions=['XYZ'])['to'] == 'Riverside <orders@riverside.example>'
+    assert 'to' not in values(functions=['XYZ'], fallback='skip')
+    assert call(app, 'smtp_compose', table='Customer', id=42, fallback='never')['status_code'] == 400
+
+
+def test_the_merge_command_says_who_went_to_the_fallback(app, contacts):
+    values = call(app, 'smtp_merge', table='Customer', ids=[42, 43, 44],
+                  functions=['ADM'])['data']['draft']['values']
+    assert values['recipients'] == (
+        'Messages: 2, addresses: 2. No contact with the function, to the main address: '
+        'Hillside. Without an address, skipped: Lakeside')
+    values = call(app, 'smtp_merge', table='Customer', ids=[42, 43], functions=['ADM'],
+                  fallback='skip')['data']['draft']['values']
+    assert values['recipients'] == (
+        'Messages: 1, addresses: 1. No contact with the function, skipped: Hillside')
+
+
+def test_a_merge_sends_one_message_per_record_to_all_its_addresses(app, smtpd, contacts):
+    result = merge(app, ids=[42, 43], functions=['ADM', 'TEC'])
+    assert result['status'] == 'success', result
+    assert result['$flow']['info'] == [
+        '2 messages sent', 'No contact with the function, to the main address: Hillside']
+    by_first = {tuple(e.rcpt_tos): e for e in smtpd[0].envelopes}
+    assert set(by_first) == {('carla@riverside.example', 'dario@riverside.example'),
+                             ('info@hillside.example',)}
+    # The contacts are linked: each sees the message among its mail sent
+    assert [m['role'] for m in call(app, 'smtp_sent', model='Agent', id=2)['data']] == ['recipient']
+    assert len(call(app, 'smtp_sent', model='Customer', id=42)['data']) == 1
+
+
+def test_one_message_per_contact_reads_the_contact(app, smtpd, contacts):
+    result = merge(app, ids=[42], functions=['ADM', 'TEC'], per_contact=True)
+    assert result['status'] == 'success', result
+    texts = {e.rcpt_tos[0]: email.message_from_bytes(e.content, policy=policy.default)
+             .get_body(('plain',)).get_content().strip() for e in smtpd[0].envelopes}
+    assert texts == {'carla@riverside.example': 'Dear Carla Bianchi, see you',
+                     'dario@riverside.example': 'Dear Dario Rossi, see you'}
+    # The record ticked lists both messages
+    assert len(call(app, 'smtp_sent', model='Customer', id=42)['data']) == 2
+
+
+def test_a_contact_picked_in_the_dialog_sees_the_message(app, smtpd, contacts):
+    draft = {'account': 'office', 'record': {'model': 'Customer', 'id': 42},
+             'to': '"Rossi, Dario" <dario@riverside.example>, ann@example.com',
+             'subject': 'Hello', 'body': 'Hi'}
+    result = call(app, 'smtp_compose_send', data=draft)
+    assert result['status'] == 'success', result
+    assert sorted(smtpd[0].envelopes[0].rcpt_tos) == ['ann@example.com', 'dario@riverside.example']
+    assert [m['role'] for m in call(app, 'smtp_sent', model='Agent', id=2)['data']] == ['recipient']
+    assert call(app, 'smtp_sent', model='Agent', id=1)['data'] == []
+
+
+def test_the_summary_follows_the_form(app, contacts):
+    draft = {'model': 'Customer', 'ids': [42, 43], 'functions': ['ADM', 'TEC'],
+             'fallback': 'skip'}
+    summary = lambda **over: call(app, 'smtp_merge_recipients', data={**draft, **over})['data']
+    assert summary() == 'Messages: 1, addresses: 2. No contact with the function, skipped: Hillside'
+    assert summary(per_contact=True).startswith('Messages: 2, addresses: 2.')
+    assert summary(functions=[]) == 'Messages: 2, addresses: 2'

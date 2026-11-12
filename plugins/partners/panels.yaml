@@ -130,6 +130,9 @@ pages:
                       - field: title
                         title: Title
                         width: 110
+                      - field: functions
+                        title: Functions
+                        width: 130
                       - field: email
                         title: Email
                       - field: phone
@@ -141,7 +144,7 @@ pages:
 
   # ── A row that hangs off a subject ───────────────────────────────────────
   #    The same table with the fields that make sense for a part: how to address
-  #    the person, and how to reach them. No roles and no tax codes — a contact
+  #    the person, what they do there, and how to reach them. No roles and no tax codes — a contact
   #    is not a party to anything. `parent_id`, `usage` and `kind` come from the
   #    collection node and are never drawn: editing the stamp would move the row
   #    into another tab under the operator's hands.
@@ -162,6 +165,11 @@ pages:
                   width: 20%
                 - name: name
                   width: 55%
+                - filler:
+                # What the contact does inside the partner: the codes a command
+                # names to reach the right people (an invoice to accounts).
+                - name: functions
+                  width: 40%
                 - filler:
                 - name: email
                   width: 40%

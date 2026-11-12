@@ -49,6 +49,37 @@ pages:
           pass: [id]
         $ref: views.smtp_message_view
 
+  # Every message sent, whatever it was about: the log itself, for whoever
+  # reads MailLog (an administrator). Menu-silent like the rest of the
+  # commons: the application puts it in its menu.
+  smtp_log:
+    title: Email log
+    access: MailLog.read
+    help: Every message sent, newest first, with how each one went.
+    content:
+      type: table
+      source:
+        model: MailLog
+        order_by: [-id]
+      navigator:
+        mode: readonly
+      columns:
+        - { field: sent_at, title: Sent, width: 140 }
+        - { field: status, title: Status, width: 90 }
+        - { field: account, title: Account, width: 100 }
+        - { field: subject, title: Subject }
+        - { field: to, title: To }
+        - { field: sender, title: From }
+        - { field: error, title: Error }
+    panels:
+      - id: message
+        pos: right
+        width: 460
+        trigger:
+          event: row_click
+          pass: [id]
+        $ref: views.smtp_message_view
+
   # A mail merge: the ticked rows of a list (smtp_merge), one message each.
   # A context gives the placeholders of its table with a page of its own, as
   # for the compose form.
@@ -82,8 +113,11 @@ views:
             widget: combobox
             choices_endpoint: smtp_my_accounts
             required: true
+          # Written by hand, or ticked from the record's addresses (the
+          # widget's dialog, smtp_addresses)
           - name: to
             label: To
+            widget: smtp.recipients
             help: The addresses, separated by commas, such as ann@example.com, Bob <bob@example.com>.
           - name: cc
             label: Cc
@@ -157,9 +191,10 @@ views:
             widget: combobox
             choices_endpoint: smtp_my_accounts
             required: true
+          # Asked again of the server when whom inside each record changes
           - name: recipients
             label: Recipients
-            readonly: true
+            widget: smtp.mergerecipients
           - name: subject
             label: Subject
             required: true
@@ -173,6 +208,10 @@ views:
           - name: attachments
             label: Attachments
             widget: smtp.attachments
+          - name: per_contact
+            label: One message per contact
+            type: Boolean
+            help: Each address gets a message of its own, whose placeholders read the row the address belongs to.
           - name: keep_log
             label: Keep a log of the messages
             type: Boolean

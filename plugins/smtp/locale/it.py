@@ -80,13 +80,25 @@ register_translations('it', {
     ' and {n} more': ' e altri {n}',
     'Tick the records to write to first': 'Spunta prima i record a cui scrivere',
     'A mail merge is a command of a list': 'La stampa unione è un comando di una lista',
-    '{n} recipients': '{n} destinatari',
     'Without an address, skipped: {names}': 'Senza indirizzo, saltati: {names}',
     "'data' is the merge form's draft": "'data' è la bozza della form di stampa unione",
-    'None of the records has an address': 'Nessuno dei record ha un indirizzo',
     'Nothing was sent. {n} messages cannot leave: {list}': 'Non è partito nulla. {n} messaggi non possono partire: {list}',
     '{n} messages sent': '{n} messaggi spediti',
     '{n} messages written to a file (dry run), not sent': '{n} messaggi scritti in un file (prova), non spediti',
     'Failed: {list}': 'Non riusciti: {list}',
     'No log was kept of these messages': 'Di questi messaggi non è stato conservato il registro',
+    # Whom inside a record (addresses.py, the merge)
+    "'functions' is a list of codes, such as {example}": "'functions' è una lista di codici, come {example}",
+    "'fallback' is one of: {values}": "'fallback' è uno fra: {values}",
+    'Messages: {n}, addresses: {m}': 'Messaggi: {n}, indirizzi: {m}',
+    'No contact with the function, to the main address: {names}':
+        "Nessun contatto con la funzione, all'indirizzo principale: {names}",
+    'No contact with the function, skipped: {names}': 'Nessun contatto con la funzione, saltati: {names}',
+    'None of the records has an address to write to': 'Nessuno dei record ha un indirizzo a cui scrivere',
+    'One message per contact': 'Un messaggio per contatto',
+    'Each address gets a message of its own, whose placeholders read the row the address belongs to.':
+        "Ogni indirizzo riceve un messaggio suo, i cui segnaposto leggono la riga a cui l'indirizzo appartiene.",
+    'Email log': 'Registro email',
+    'Every message sent, newest first, with how each one went.': "Tutti i messaggi spediti, dal più recente, con l'esito di ciascuno.",
+    'Account': 'Account',
 })

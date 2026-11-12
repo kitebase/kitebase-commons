@@ -83,6 +83,18 @@ tables:
         choices_endpoint: partner_roles
         validate: partner_roles
 
+      # The functions of a contact inside its partner, rows of PartnerFunction:
+      # technical office, accounts, warehouse. A set, like `roles`, because one
+      # person may be the technical office and the warehouse at once. What a
+      # command reads to address a document to the right people (`smtp` sends
+      # an invoice to the contacts holding ADM). Meaningful on a contact; the
+      # column is on the table because a contact is a row of it.
+      - name: functions
+        type: ShortSet
+        label: "Functions"
+        choices_endpoint: partner_functions
+        validate: partner_functions
+
       # Parent subject, for rows that hang off another one: a contact person, a
       # delivery address, a billing address. Qualified by `usage` below.
       # A child row is a *part* of its parent: a contact or an address means
@@ -186,3 +198,32 @@ tables:
         default: 0
         nullable: false
         help: "Display order; also decides which role wins when two would fill the same field"
+
+  # What a contact does inside its partner. Like PartnerRole, the values are
+  # the business's: the application seeds its own, the user adds more from the
+  # UI, and a function in use is never deleted.
+  PartnerFunction:
+    name: partner_functions
+    label: "Contact function"
+    help: |
+      The functions a contact may hold inside its partner: technical office,
+      accounts, warehouse. Each row's code is what is stored inside
+      `Partner.functions`, and what a command names to reach the right people.
+    tags: [reference]
+
+    columns:
+
+      - name: id
+        type: ShortID
+        label: "Code"
+
+      - name: label
+        type: Description
+        label: "Label"
+
+      - name: sequence
+        type: Integer
+        label: "Sequence"
+        default: 0
+        nullable: false
+        help: "Display order"

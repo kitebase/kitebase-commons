@@ -1,6 +1,7 @@
 from kitebase.i18n import register_translations
 
 register_translations('it', {
+    'A list of function codes is expected, such as ["TEC", "ADM"]': 'È attesa una lista di codici di funzione, come ["TEC", "ADM"]',
     'A list of role codes is expected, such as ["C", "S"]': 'È attesa una lista di codici di ruolo, come ["C", "S"]',
     'A role and the partners are needed': 'Servono un ruolo e i soggetti',
     'Add role {role}': 'Aggiungi il ruolo {role}',
@@ -8,10 +9,12 @@ register_translations('it', {
     'Belongs to': 'Appartiene a',
     'Code': 'Codice',
     'Contact': 'Contatto',
+    'Contact function': 'Funzione del contatto',
     'Contacts': 'Contatti',
     'Do not save': 'Non salvare',
     'Email': 'Email',
     'Female': 'Femmina',
+    'Functions': 'Funzioni',
     'Gender': 'Sesso',
     'Kind': 'Tipo',
     'Label': 'Etichetta',
@@ -38,6 +41,7 @@ register_translations('it', {
     'Tax code': 'Codice fiscale',
     'Title': 'Titolo',
     'Trade name': 'Ragione sociale',
+    'Unknown function: {codes}': 'Funzione sconosciuta: {codes}',
     'Unknown role: {codes}': 'Ruolo sconosciuto: {codes}',
     'Usage': 'Uso',
     'VAT number': 'Partita IVA',

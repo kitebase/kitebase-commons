@@ -47,8 +47,8 @@ def test_every_table_for_whoever_reads_them_all(app):
     rows = listed(lambda p: True)
     assert [r['id'] for r in rows] == ['Book', 'BookTagLink', 'Loan']
     assert rows[0] == {'id': 'Book', 'label': 'Book', 'table': 'books', 'plugin': 'books',
-                       'kind': 'table', 'page': 'book_list'}
-    assert rows[1]['kind'] == 'junction' and rows[1]['page'] == 'booktaglink_list'
+                       'kind': 'table', 'page': 'auto.book_list'}
+    assert rows[1]['kind'] == 'junction' and rows[1]['page'] == 'auto.booktaglink_list'
 
 
 def test_a_table_that_cannot_be_read_is_not_offered(app):

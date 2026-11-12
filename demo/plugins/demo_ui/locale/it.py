@@ -8,6 +8,7 @@ register_translations('it', {
     'Billing addresses': 'Indirizzi di fatturazione',
     'City': 'Città',
     'Configuration': 'Configurazione',
+    'Contact functions': 'Funzioni dei contatti',
     'Customers': 'Clienti',
     'Delivery addresses': 'Indirizzi di consegna',
     'Email': 'Email',
@@ -25,4 +26,6 @@ register_translations('it', {
     'Users': 'Utenti',
     'Zip': 'CAP',
     'Phone book': 'Rubrica',
+    'Email log': 'Registro email',
+    'Tables': 'Tabelle',
 })
