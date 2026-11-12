@@ -18,11 +18,14 @@ register_translations('it', {
     'The subject is one line': "L'oggetto sta su una riga",
     "'links' is a list of {model, id, role}": "'links' è una lista di {model, id, role}",
     "'attachments' is a list": "'attachments' è una lista",
-    'An attachment is {media: ref} or {name, content}': 'Un allegato è {media: ref} oppure {name, content}',
     'The mail server did not take the message: {error}': 'Il server di posta non ha accettato il messaggio: {error}',
     "'message' is a mapping of to, subject, body...": "'message' è una mappa di to, subject, body...",
-    'Attachments are not accepted as references from the client':
-        'Il client non può indicare gli allegati per riferimento',
+    "'{ref}' is not a file you attached": "'{ref}' non è un file che hai allegato",
+    'An attachment is {ref}, {media} or {name, content}': 'Un allegato è {ref}, {media} oppure {name, content}',
+    "Attachments need the media root '{root}' in config.yaml":
+        "Gli allegati richiedono la radice media '{root}' in config.yaml",
+    'A file is uploaded through the upload route, not the dispatcher':
+        'Un file si carica dalla rotta di upload, non dal dispatcher',
     "No {model} {id}": "{model} {id} non trovato",
     "'model' and 'id' name the record": "'model' e 'id' indicano il record",
     'Send email': 'Spedire email',

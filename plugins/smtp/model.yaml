@@ -74,20 +74,19 @@ tables:
         type: Markdown
         label: "Text"
 
-      # The names of the files attached, in the order of the message. The files
-      # themselves are in the row's folder, `files`.
+      # The files attached, in the order of the message: references to the
+      # outbox, shared by the messages of a mail merge rather than copied.
       - name: attachments
         type: Json
         default: []
         label: "Attachments"
 
-      # The row's folder: the files sent with the message and, for a dry run,
-      # the message itself as `dry_run.eml`.
-      - name: files
-        type: Files
-        root: mail
-        accept: [pdf, jpg, jpeg, png, gif, txt, csv, xlsx, xls, docx, doc, odt, ods, zip, eml]
-        label: "Files"
+      # A dry run: the message as it would have left, a file a mail client opens.
+      - name: eml
+        type: String
+        length: 255
+        label: "Message file"
+        query_rank: more
 
       - name: receipt
         type: Boolean

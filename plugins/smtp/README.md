@@ -54,8 +54,8 @@ therefore brings nothing along that sends mail.
 
 Under `$redirect_to` the log keeps both the recipients written and the address
 delivered to, and the message carries `X-Redirected-From`. Under `$dry_run` the
-message is written as `dry_run.eml` in the folder of its log row, which a mail
-client opens. While either switch is on, `kitebase check` says so.
+message is written to a file, in `mail:dry_run/`, which a mail client opens;
+the log row's `eml` names it. While either switch is on, `kitebase check` says so.
 
 ## Who sends from which account
 
@@ -67,16 +67,24 @@ in the message.
 
 The `smtp.send` permission is needed to send from the client.
 
-## The media root
+## Attachments
 
-The log row's folder holds the attachments that were sent, and the dry-run
-files. Its column is on the root `mail`, which the application declares:
+An attachment is written once, in the media root `mail`, which the application
+declares:
 
 ```yaml
 media:
   roots:
-    mail: { type: fs, path: media/mail, allocate: by_record }
+    mail: { type: fs, path: media/mail }
 ```
+
+The client uploads a file with `smtp_attach` (the upload route), gets back its
+reference, and sends the reference with the message. The log row refers to
+the files rather than copying them, so all the messages of a mail merge share
+one copy. A user's message may carry only the files that user uploaded: the
+outbox is divided by user, and a reference to another user's file is refused.
+`smtp.attachments` in the merged tree sets the extensions accepted and the
+largest file.
 
 ## Sending from the server
 
@@ -95,9 +103,10 @@ send({
 ```
 
 The body is markdown. The plain text part is the markdown itself, and the HTML
-part is its rendering with raw HTML turned off. A `media` attachment is read on
-the server with no permission check, so only server code passes one: the
-`smtp_send` endpoint refuses references from the client.
+part is its rendering with raw HTML turned off. Server code may also attach a
+file of any root (`media`), read with no permission check, or bytes (`name`,
+`content`), which are staged first. The `smtp_send` endpoint accepts neither:
+from the client, a message carries only `ref`s its user staged.
 
 ## Placeholders
 

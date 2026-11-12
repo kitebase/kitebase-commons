@@ -31,7 +31,7 @@ import kitebase.utils
 from kitebase.access import Guard
 from kitebase.diagnostics import run_checks
 from kitebase.errors import Invalid
-from kitebase.media import AllocContext
+from kitebase.media import UploadedFile
 from kitebase.server_utils import handle_generic_endpoint
 
 COMMONS = Path(__file__).resolve().parents[2]
@@ -108,7 +108,7 @@ def app(tmp_path_factory):
         'name': 'crmapp',
         'plugins': [{'path': str(COMMONS), 'include': ['common', 'users', 'smtp']}, 'plugins'],
         'db_engine': f'sqlite:///{root / "crm.sqlite"}',
-        'media': {'roots': {'mail': {'type': 'fs', 'path': 'media/mail', 'allocate': 'by_record'}}},
+        'media': {'roots': {'mail': {'type': 'fs', 'path': 'media/mail'}}},
     }), encoding='utf-8')
 
     cwd = os.getcwd()
@@ -180,13 +180,13 @@ def log(app, log_id):
         return row
 
 
-def folder_ref(app, log_id):
-    """The folder of a log row, as the media column computes it."""
-    return str(app.media.root('mail').folder(AllocContext('MailLog', 'files', log_id)))
-
-
-def folder(app, log_id):
-    return app.media.list(folder_ref(app, log_id))
+def attach(app, name, content, user=7):
+    """Stage a file through the upload endpoint, as the client does."""
+    result = handle_generic_endpoint(app.dispatcher, 'smtp_attach',
+                                     {'file': UploadedFile(name, iter([content]))},
+                                     {'username': 'tester', 'id': user})
+    assert result['status'] == 'success', result
+    return result['data']
 
 
 # ── Sending ───────────────────────────────────────────────────────────────────
@@ -212,21 +212,49 @@ def test_a_message_reaches_the_server_with_text_and_html(app, smtpd):
     assert row.message_id == msg['Message-ID'] and row.sent_at is not None
 
 
-def test_attachments_are_sent_and_kept_in_the_folder_of_the_log(app, smtpd):
-    from smtp.mailer import send
-    with kitebase.context.use({'id': 7}):
-        result = send(message(attachments=[
-            {'name': 'notes.txt', 'content': b'hello'}]))
-    _envelope, msg = smtpd[0].last()
-    parts = list(msg.iter_attachments())
+def test_a_staged_file_is_attached_and_referred_to_by_the_log(app, smtpd):
+    staged = attach(app, 'notes.txt', b'hello')
+    assert staged['name'] == 'notes.txt' and staged['ref'].startswith('mail:outbox/7/')
+    result = call(app, 'smtp_send', message=message(attachments=[{'ref': staged['ref']}]))
+    assert result['status'] == 'success', result
+    parts = list(smtpd[0].last()[1].iter_attachments())
     assert [(p.get_filename(), p.get_content()) for p in parts] == [('notes.txt', 'hello')]
-    assert log(app, result['id']).attachments == ['notes.txt']
-    assert [f.name for f in folder(app, result['id'])] == ['notes.txt']
+    assert log(app, result['data']['id']).attachments == [staged['ref']]
 
 
-def test_the_client_cannot_attach_a_reference(app):
-    result = call(app, 'smtp_send', message=message(attachments=[{'media': 'mail:x/y.pdf'}]))
+def test_a_merge_shares_one_copy_of_an_attachment(app, smtpd):
+    staged = attach(app, 'terms.pdf', b'%PDF-1.4 terms')
+    ids = [call(app, 'smtp_send', message=message(to=[to], attachments=[{'ref': staged['ref']}]))
+           ['data']['id'] for to in ('a@example.com', 'b@example.com')]
+    assert [log(app, i).attachments for i in ids] == [[staged['ref']], [staged['ref']]]
+    assert len(list((app.root / 'media' / 'mail').rglob('terms*.pdf'))) == 1
+
+
+def test_the_client_attaches_only_what_its_user_staged(app):
+    theirs = attach(app, 'secret.pdf', b'%PDF-1.4', user=8)
+    for ref in (theirs['ref'], 'mail:dry_run/202611/1.eml', 'books:2026/11/x.pdf'):
+        result = call(app, 'smtp_send', message=message(attachments=[{'ref': ref}]))
+        assert result['status_code'] == 400, ref
+    result = call(app, 'smtp_send', message=message(attachments=[{'media': 'books:x.pdf'}]))
     assert result['status_code'] == 400
+
+
+def test_an_upload_of_a_kind_not_accepted_is_refused(app):
+    result = handle_generic_endpoint(app.dispatcher, 'smtp_attach',
+                                     {'file': UploadedFile('run.exe', iter([b'MZ']))},
+                                     {'username': 'tester', 'id': 7})
+    assert result['status_code'] == 415
+
+
+def test_server_code_attaches_bytes_and_files_of_any_root(app, smtpd):
+    from smtp.mailer import send
+    staged = attach(app, 'a.txt', b'one')
+    with kitebase.context.use(None):                 # the system, not the user who staged it
+        result = send(message(account='office', attachments=[{'media': staged['ref']},
+                                           {'name': 'b.txt', 'content': b'two'}]))
+    parts = list(smtpd[0].last()[1].iter_attachments())
+    assert [(p.get_filename(), p.get_content()) for p in parts] == [('a.txt', 'one'), ('b.txt', 'two')]
+    assert log(app, result['id']).attachments[1].startswith('mail:outbox/system/')
 
 
 def test_a_receipt_is_asked_with_its_header(app, smtpd):
@@ -321,9 +349,9 @@ def test_dry_run_writes_the_message_and_sends_nothing(app, smtpd):
     result = call(app, 'smtp_send', message=message())
     assert smtpd[0].envelopes == []
     assert result['data']['status'] == 'dry_run'
-    files = {f.name for f in folder(app, result['data']['id'])}
-    assert files == {'dry_run.eml'}
-    with app.media.open(folder_ref(app, result['data']['id']) + 'dry_run.eml') as f:
+    eml = log(app, result['data']['id']).eml
+    assert eml.startswith('mail:dry_run/')
+    with app.media.open(eml) as f:
         assert email.message_from_bytes(f.read(), policy=policy.default)['Subject'] == 'Invoice 1033'
 
 
@@ -337,6 +365,12 @@ def test_check_says_while_a_switch_is_on_and_when_an_account_is_broken(app, smtp
     assert issues['smtp-redirect']['severity'] == 'warning'
     assert issues['smtp-account']['severity'] == 'error'
     assert issues['smtp-account']['path'].endswith('.broken')
+
+
+def test_check_says_when_the_media_root_is_missing(app, monkeypatch):
+    monkeypatch.setattr(app.media, 'roots', {})
+    issues = {i['code']: i for i in run_checks(app) if i['code'].startswith('smtp')}
+    assert issues['smtp-media-root']['severity'] == 'warning'
 
 
 def test_check_has_nothing_to_say_on_a_clean_installation(app):

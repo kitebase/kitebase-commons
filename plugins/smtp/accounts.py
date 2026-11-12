@@ -164,9 +164,16 @@ def check(app: Any) -> List[Dict[str, Any]]:
         if problem:
             issues.append(make_issue('error', 'smtp-account', f'{where}.{name}', problem, 'smtp'))
     opts = options()
+    media = getattr(app, 'media', None)
+    if media is None or 'mail' not in media.roots:
+        severity = 'error' if opts['dry_run'] else 'warning'
+        issues.append(make_issue(severity, 'smtp-media-root', 'media.roots.mail',
+                                 "no media root 'mail': messages carry no attachment"
+                                 + (" and a dry run has nowhere to write" if opts['dry_run'] else ''),
+                                 'smtp'))
     if opts['dry_run']:
         issues.append(make_issue('warning', 'smtp-dry-run', f'{where}.$dry_run',
-                                 'dry run: no message is sent, each is written to the folder of its log',
+                                 'dry run: no message is sent, each is written to a file (MailLog.eml)',
                                  'smtp'))
     if opts['redirect_to']:
         issues.append(make_issue('warning', 'smtp-redirect', f'{where}.$redirect_to',

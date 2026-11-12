@@ -27,9 +27,11 @@ from kitebase import access
 from kitebase.endpoint_db import coerce_value
 from kitebase.endpoints import endpoint
 from kitebase.errors import Invalid, NotFound
+from kitebase.media import UploadedFile
 from kitebase.i18n import _, _f
 from kitebase.transforms import register_validator
 
+from smtp import outbox
 from smtp.accounts import names, validate_accounts
 from smtp.mailer import send
 from smtp.templates import compose, placeholders
@@ -66,12 +68,21 @@ def smtp_send(data):
     message = data.get('message')
     if not isinstance(message, dict):
         raise Invalid(_("'message' is a mapping of to, subject, body..."))
-    if message.get('attachments'):
-        raise Invalid(_('Attachments are not accepted as references from the client'))
     for link in message.get('links') or []:
         if isinstance(link, dict) and link.get('model'):
             check_readable(str(link['model']), link.get('id'))
-    return {'status': 'success', 'code': 200, 'data': send(message)}
+    return {'status': 'success', 'code': 200, 'data': send(message, trusted=False)}
+
+
+@endpoint('smtp_attach', access='smtp.send')
+def smtp_attach(data):
+    upload = data.get('file')
+    if not isinstance(upload, UploadedFile):
+        raise Invalid(_('A file is uploaded through the upload route, not the dispatcher'))
+    app = kitebase.utils.get_app()
+    ref = outbox.stage_upload(app, upload)
+    return {'status': 'success', 'code': 200,
+            'data': {'ref': ref, 'name': outbox.name_of(ref)}}
 
 
 @endpoint('smtp_preview', access='smtp.send')
@@ -102,7 +113,8 @@ def smtp_sent(data):
         out: List[Dict[str, Any]] = [{
             'id': log.id, 'role': link.role, 'status': log.status,
             'sender': log.sender, 'to': log.to, 'cc': log.cc,
-            'subject': log.subject, 'attachments': log.attachments,
+            'subject': log.subject,
+            'attachments': [outbox.name_of(r) for r in log.attachments or []],
             'sent_at': log.sent_at.isoformat() if log.sent_at else None,
             'error': log.error,
         } for link, log in rows]

@@ -5,3 +5,8 @@ smtp:
   # Seconds an SMTP server may take to answer: without a limit, a server that
   # never answers holds the request, and its thread, forever.
   timeout: 30
+
+  # The files a user may attach: the extensions and the size of each.
+  attachments:
+    accept: [pdf, jpg, jpeg, png, gif, txt, csv, xlsx, xls, docx, doc, odt, ods, zip]
+    max_size: 20MB

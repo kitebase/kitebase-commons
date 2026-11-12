@@ -10,7 +10,8 @@
         'params': {'note': 'Thank you'},      # what [[$...]] reads
         'subject': 'Invoice [[number]]',
         'body': 'Dear [[partner.name]],\n\nthe invoice is **attached**. [[$note]]',
-        'attachments': [{'media': 'books:2026/11/x.pdf'},
+        'attachments': [{'ref': 'mail:outbox/7/202611/3f2a9c1b4e5d/terms.pdf'},
+                        {'media': 'books:2026/11/x.pdf'},
                         {'name': 'notes.txt', 'content': b'...'}],
         'receipt': True,                      # Disposition-Notification-To
         'links': [{'model': 'Partner', 'id': 42, 'role': 'recipient'}],
@@ -19,15 +20,15 @@
 Subject and body are filled and rendered by `templates.complete`: a
 placeholder that does not resolve refuses the message before anything is
 written. The record the placeholders read is linked to the message, besides
-the `links` given. Attachments are copied into the folder of the log row,
-which then holds exactly what left; a `media` reference is read on the server,
-so this function trusts its caller with it, and the endpoint never passes one
-from the client.
+the `links` given. Attachments are files staged in the outbox (outbox.py),
+referred to by the log row rather than copied; a `media` reference is read on
+the server, so only server code passes one, and from the client (`trusted`
+False) a message carries only the files its user staged.
 
 The row is written before the server is contacted and updated with the
 outcome. A server that refuses or does not answer leaves the row `failed`,
 with the reason, and raises Unavailable. Under `$dry_run` the message is
-written to `dry_run.eml` in the row's folder instead of being sent; under
+written to a file instead of being sent (the row's `eml`); under
 `$redirect_to` it goes to that address alone, and the row keeps both the
 recipients written and the address delivered to.
 """
@@ -43,13 +44,13 @@ import kitebase.utils
 from kitebase.apptime import now
 from kitebase.errors import Invalid, Unavailable
 from kitebase.i18n import _, _f
-from kitebase.media import AllocContext
 
+from smtp import outbox
 from smtp.accounts import Account, account, choose, options
 from smtp.templates import complete
 
 DEFAULT_TIMEOUT = 30
-DRY_RUN_FILE = 'dry_run.eml'
+
 
 def addresses(value: Any, field: str) -> List[str]:
     """A recipient field as a list of addresses, each checked: Invalid names the
@@ -156,33 +157,33 @@ def _validated(message: Dict[str, Any]) -> Dict[str, Any]:
     return clean
 
 
-def _attachments(app: Any, items: Any) -> List[Tuple[str, bytes]]:
-    """The attachments as (name, bytes), read before anything is written."""
+def _attachments(app: Any, items: Any, trusted: bool) -> List[Tuple[str, bytes]]:
+    """The attachments as (reference, bytes), read before anything is written.
+
+    `{ref}` is a file staged in the outbox, which an untrusted caller (the
+    client) may name only if it staged it itself. `{media}` (a file of any
+    root) and `{name, content}` (bytes, staged here) come from server code.
+    """
     if not items:
         return []
     if not isinstance(items, list):
         raise Invalid(_("'attachments' is a list"))
     out = []
     for item in items:
-        if isinstance(item, dict) and item.get('media'):
+        if not isinstance(item, dict):
+            raise Invalid(_('An attachment is {ref}, {media} or {name, content}'))
+        if item.get('ref'):
+            if not trusted and not outbox.owned(item['ref']):
+                raise Invalid(_f("'{ref}' is not a file you attached", ref=item['ref']))
+            ref = item['ref']
+        elif trusted and item.get('media'):
             ref = item['media']
-            with app.media.open(ref) as f:
-                out.append((item.get('name') or ref.rsplit('/', 1)[-1], f.read()))
-        elif isinstance(item, dict) and item.get('name') and isinstance(item.get('content'), bytes):
-            out.append((item['name'], item['content']))
+        elif trusted and item.get('name') and isinstance(item.get('content'), bytes):
+            ref = outbox.stage(app, item['name'], [item['content']])
         else:
-            raise Invalid(_('An attachment is {media: ref} or {name, content}'))
+            raise Invalid(_('An attachment is {ref}, {media} or {name, content}'))
+        out.append((ref, outbox.read(app, ref)))
     return out
-
-
-def _store(app: Any, log_id: Any, files: List[Tuple[str, bytes]]) -> List[str]:
-    """Write the files into the row's folder; the names they were stored under."""
-    if not files:
-        return []
-    root = app.media.root('mail')
-    folder = root.folder(AllocContext('MailLog', 'files', log_id))
-    return [root.add_to_folder(folder, name, [content]).path.rsplit('/', 1)[-1]
-            for name, content in files]
 
 
 def _update(app: Any, log_id: Any, **values: Any) -> None:
@@ -194,13 +195,16 @@ def _update(app: Any, log_id: Any, **values: Any) -> None:
         session.commit()
 
 
-def send(message: Dict[str, Any]) -> Dict[str, Any]:
-    """Send one message and log it; see the module's docstring."""
+def send(message: Dict[str, Any], trusted: bool = True) -> Dict[str, Any]:
+    """Send one message and log it; see the module's docstring. `trusted` is
+    False for a message from the client, whose attachments are only the
+    files its user staged."""
     app = kitebase.utils.get_app()
     clean = _validated(message)
     parts = complete(clean)
     acct = account(choose(clean.get('account')))
-    files = _attachments(app, clean.get('attachments'))
+    files = _attachments(app, clean.get('attachments'), trusted)
+    refs = [ref for ref, _content in files]
     opts = options()
     recipients = [opts['redirect_to']] if opts['redirect_to'] else \
         _bare(clean['to'] + clean['cc'] + clean['bcc'])
@@ -212,7 +216,8 @@ def send(message: Dict[str, Any]) -> Dict[str, Any]:
                       sender=clean.get('from') or acct.sender, reply_to=clean.get('reply_to'),
                       to=clean['to'], cc=clean['cc'], bcc=clean['bcc'], delivered_to=recipients,
                       subject=parts['subject'], body=parts['text'],
-                      receipt=bool(clean.get('receipt')), user_id=context.get('id'))
+                      receipt=bool(clean.get('receipt')), user_id=context.get('id'),
+                      attachments=refs)
         session.add(row)
         session.flush()
         for link in clean['links']:
@@ -221,23 +226,23 @@ def send(message: Dict[str, Any]) -> Dict[str, Any]:
         session.commit()
         log_id = row.id
 
-    stored = _store(app, log_id, files)
-    msg = build(clean, acct, parts, list(zip(stored, (content for _n, content in files))))
+    msg = build(clean, acct, parts, [(outbox.name_of(ref), content) for ref, content in files])
     if opts['redirect_to']:
         msg['X-Redirected-From'] = ', '.join(_bare(clean['to'] + clean['cc'] + clean['bcc']))
 
     if opts['dry_run']:
-        _store(app, log_id, [(DRY_RUN_FILE, msg.as_bytes())])
+        eml = outbox.write_dry_run(app, log_id, msg.as_bytes())
+        _update(app, log_id, eml=eml)
         status = 'dry_run'
     else:
         try:
             deliver(acct, msg, recipients, _timeout(app))
         except (smtplib.SMTPException, OSError) as e:
-            _update(app, log_id, status='failed', error=str(e), attachments=stored,
+            _update(app, log_id, status='failed', error=str(e), attachments=refs,
                     message_id=msg['Message-ID'])
             raise Unavailable(_f('The mail server did not take the message: {error}',
                                  error=str(e)), data={'id': log_id})
         status = 'sent'
-    _update(app, log_id, status=status, attachments=stored, message_id=msg['Message-ID'],
+    _update(app, log_id, status=status, attachments=refs, message_id=msg['Message-ID'],
             sent_at=now())
     return {'id': log_id, 'status': status, 'message_id': msg['Message-ID']}
