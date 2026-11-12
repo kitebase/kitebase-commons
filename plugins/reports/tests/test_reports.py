@@ -133,7 +133,7 @@ SHOP_VIEWS = {'views': {
 
 def write_json(path: Path, data) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data))
+    path.write_text(json.dumps(data), encoding='utf-8')
 
 
 @pytest.fixture(scope='module')
@@ -142,11 +142,11 @@ def app(tmp_path_factory):
     shop = root / 'plugins' / 'shop'
     shop.mkdir(parents=True)
     (shop / 'config.yaml').write_text(yaml.safe_dump(
-        {'name': 'shop', 'depends_on': ['common', 'users', 'reports']}))
-    (shop / 'model.yaml').write_text(yaml.safe_dump(SHOP_MODEL))
-    (shop / 'model.py').write_text(SHOP_PY)
-    (shop / 'shop_reports.py').write_text(textwrap.dedent(SHOP_REPORTS))
-    (shop / 'views.yaml').write_text(yaml.safe_dump(SHOP_VIEWS))
+        {'name': 'shop', 'depends_on': ['common', 'users', 'reports']}), encoding='utf-8')
+    (shop / 'model.yaml').write_text(yaml.safe_dump(SHOP_MODEL), encoding='utf-8')
+    (shop / 'model.py').write_text(SHOP_PY, encoding='utf-8')
+    (shop / 'shop_reports.py').write_text(textwrap.dedent(SHOP_REPORTS), encoding='utf-8')
+    (shop / 'views.yaml').write_text(yaml.safe_dump(SHOP_VIEWS), encoding='utf-8')
 
     andrep = shop / 'andrep'
     write_json(andrep / 'customers.json', make_template(
@@ -162,7 +162,7 @@ def app(tmp_path_factory):
     write_json(andrep / 'side_customer.json', make_template({'band': ['[side]']}))
     write_json(andrep / 'side_supplier.json', make_template({'band': ['[side]']}))
     write_json(andrep / 'resources.json', make_template({'band': ["[ref | load]"]}))
-    (andrep / 'logo.txt').write_text('a public asset')
+    (andrep / 'logo.txt').write_text('a public asset', encoding='utf-8')
     write_json(andrep / 'other.json', make_template({'band': ['other']}))
     std = [{'rule': 'InsBefore', 'target': 'standard_header'}]
     write_json(andrep / 'customers_headed.json', make_template(
@@ -170,7 +170,7 @@ def app(tmp_path_factory):
     landscape = [{'rule': 'InsBefore', 'target': 'standard_header_landscape'}]
     write_json(andrep / 'customers_landscape.json', make_template(
         {'band': ['[row.id]']}, composition=landscape))
-    (root / 'secret.txt').write_text('outside every root')
+    (root / 'secret.txt').write_text('outside every root', encoding='utf-8')
 
     installation = root / '_andrep'
     write_json(installation / 'customers_wide.json', make_template({'band': ['[row.last_name]']}))
@@ -184,7 +184,7 @@ def app(tmp_path_factory):
                     'plugins'],
         'db_engine': f'sqlite:///{root / "shop.sqlite"}',
         'reports': {'header': ['Example Trading Ltd', 'VAT 00000000000']},
-    }))
+    }), encoding='utf-8')
 
     cwd = os.getcwd()
     os.chdir(root)

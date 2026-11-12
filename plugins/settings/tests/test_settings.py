@@ -55,14 +55,14 @@ def app(tmp_path_factory):
     root = tmp_path_factory.mktemp('shopapp')
     shop = root / 'plugins' / 'shop'
     shop.mkdir(parents=True)
-    (shop / 'config.yaml').write_text(yaml.safe_dump({'name': 'shop'}))
-    (shop / 'settings.yaml').write_text(yaml.safe_dump(SHOP_SETTINGS, sort_keys=False))
-    (shop / 'pages.yaml').write_text(yaml.safe_dump(SHOP_PAGES))
+    (shop / 'config.yaml').write_text(yaml.safe_dump({'name': 'shop'}), encoding='utf-8')
+    (shop / 'settings.yaml').write_text(yaml.safe_dump(SHOP_SETTINGS, sort_keys=False), encoding='utf-8')
+    (shop / 'pages.yaml').write_text(yaml.safe_dump(SHOP_PAGES), encoding='utf-8')
     (root / 'config.yaml').write_text(yaml.safe_dump({
         'name': 'shopapp',
         'plugins': [{'path': str(COMMONS), 'include': ['common', 'settings']}, 'plugins'],
         'db_engine': f'sqlite:///{root / "shop.sqlite"}',
-    }))
+    }), encoding='utf-8')
 
     cwd = os.getcwd()
     os.chdir(root)
