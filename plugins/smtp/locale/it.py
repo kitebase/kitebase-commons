@@ -44,4 +44,21 @@ register_translations('it', {
     'Some placeholders do not resolve: {names}': 'Alcuni segnaposto non si risolvono: {names}',
     "'record' is {model, id}": "'record' è {model, id}",
     "'params' is a mapping of name to value": "'params' è una mappa di nome e valore",
+    'Write an email': 'Scrivi una email',
+    "'data' is the form's draft": "'data' è la bozza della form",
+    'Dry run: the message was written to a file, not sent': 'Prova: il messaggio è stato scritto in un file, non spedito',
+    'Sent to {to}': 'Spedita a {to}',
+    'Send': 'Spedisci',
+    'From': 'Da',
+    'To': 'A',
+    'Subject': 'Oggetto',
+    'Text': 'Testo',
+    'Attachments': 'Allegati',
+    'Ask for a receipt': 'Chiedi la ricevuta di lettura',
+    'The addresses, separated by commas, such as ann@example.com, Bob <bob@example.com>.':
+        'Gli indirizzi, separati da virgole, come ann@example.com, Bob <bob@example.com>.',
+    'Asks the recipient\'s mail program to confirm the reading; many ignore it.':
+        'Chiede al programma di posta del destinatario di confermare la lettura; molti lo ignorano.',
+    'A message from one of your accounts. Sending it closes the form; a refusal says what to fix and keeps what you wrote.':
+        'Un messaggio da uno dei tuoi account. Spedirlo chiude la form; un rifiuto dice cosa correggere e tiene ciò che hai scritto.',
 })

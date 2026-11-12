@@ -13,15 +13,23 @@ with its placeholders filled, and the ones that do not resolve (`missing`),
 which the composer shows instead of being refused. The rendering is the
 server's, so what is seen is what is sent.
 
+`smtp_compose` opens the compose form, from a command (a row's `table` and
+`id`, the record the message is about) or from anywhere: the answer is an
+`open_form` with the draft the server prepares (`compose_action`). The form
+has no model; its save, `smtp_compose_send`, sends the message, and a refusal
+(an address that is not one) leaves the form open with what was written.
+
 `smtp_sent` is the mail of one record, newest first. The links are not read
 directly: the record is read first, with the user's permissions and record
 rules (404 when they do not reach it), and only then its links, for the
 system. Whoever sees the record sees the mail about it, and nothing else.
 """
-from typing import Any, Dict, List
+from email.utils import formataddr, parseaddr
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy import inspect
 
+import kitebase.context
 import kitebase.utils
 from kitebase import access
 from kitebase.endpoint_db import coerce_value
@@ -32,8 +40,8 @@ from kitebase.i18n import _, _f
 from kitebase.transforms import register_validator
 
 from smtp import outbox
-from smtp.accounts import names, validate_accounts
-from smtp.mailer import send
+from smtp.accounts import names, of_user, options, validate_accounts
+from smtp.mailer import addresses, send
 from smtp.templates import compose, placeholders
 
 
@@ -83,6 +91,100 @@ def smtp_attach(data):
     ref = outbox.stage_upload(app, upload)
     return {'status': 'success', 'code': 200,
             'data': {'ref': ref, 'name': outbox.name_of(ref)}}
+
+
+@endpoint('smtp_my_accounts', access='smtp.send')
+def smtp_my_accounts(data):
+    """The accounts the current user may send from: the vocabulary of the form's From."""
+    user = (kitebase.context.current() or {}).get('id')
+    return {'status': 'success', 'code': 200,
+            'data': [{'value': n, 'label': n} for n in (of_user(user) if user is not None else [])]}
+
+
+# ── Composing ─────────────────────────────────────────────────────────────────
+
+# The fields of the compose form that make the message; any other field of
+# the form is a parameter of the text, read by [[$name]]
+MESSAGE_FIELDS = ('account', 'to', 'cc', 'bcc', 'reply_to', 'subject', 'body', 'receipt',
+                  'attachments', 'record')
+
+
+def _recipient(model: str, record_id: Any) -> Optional[str]:
+    """The address of a record that has an `email` column: `Name <address>`,
+    the name being the record's display field."""
+    app = kitebase.utils.get_app()
+    table = app.tables.get(model)
+    if table is None or not any(c.name == 'email' for c in table.effective_columns):
+        return None
+    if 'email' in access.unreadable_columns(model, app) or 'email' in table.secret_columns:
+        return None
+    Model = app.models[model]
+    key = inspect(Model).primary_key[0].key
+    with app.get_session() as session:
+        row = session.get(Model, coerce_value(Model, key, record_id))
+        address = getattr(row, 'email', None) if row is not None else None
+        if not address:
+            return None
+        display = (table.attributes.get('display_field') or '')
+        name = getattr(row, display, None) if display and display != 'email' else None
+        return formataddr((str(name), address)) if name else address
+
+
+def compose_action(record: Optional[Dict[str, Any]] = None, page: str = 'smtp_compose',
+                   title: Optional[str] = None, **values: Any) -> Dict[str, Any]:
+    """The answer that opens the compose form with a draft: the account the
+    user sends from first, the record's address when the record has one, and
+    `values` over them (subject, body, the parameters of the text...). For
+    another plugin's command that computes what the message says."""
+    user = (kitebase.context.current() or {}).get('id')
+    accounts = of_user(user) if user is not None else []
+    draft: Dict[str, Any] = {'account': accounts[0] if accounts else None,
+                             'attachments': [], 'receipt': False}
+    if record:
+        check_readable(str(record['model']), record['id'])
+        draft['record'] = {'model': record['model'], 'id': record['id']}
+        address = _recipient(str(record['model']), record['id'])
+        if address:
+            draft['to'] = address
+    draft.update(values)
+    return {'action': 'open_form', 'page': page, 'draft': {'values': draft},
+            'title': title or _('Write an email')}
+
+
+@endpoint('smtp_compose', access='smtp.send')
+def smtp_compose(data):
+    """A command's call: the row's `table` and `id`, and the command's fixed
+    `params` (`page`, the variant of the form; `subject`, `body`)."""
+    record = ({'model': data['table'], 'id': data['id']}
+              if data.get('table') and data.get('id') is not None else None)
+    values = {k: data[k] for k in ('subject', 'body', 'to') if data.get(k) is not None}
+    return {'status': 'success', 'code': 200,
+            'data': compose_action(record, page=data.get('page') or 'smtp_compose', **values)}
+
+
+@endpoint('smtp_compose_send', access='smtp.send')
+def smtp_compose_send(data):
+    """The compose form's save: its draft becomes a message and is sent."""
+    draft = data.get('data')
+    if not isinstance(draft, dict):
+        raise Invalid(_("'data' is the form's draft"))
+    message = {k: draft[k] for k in MESSAGE_FIELDS if draft.get(k) not in (None, '')}
+    message['attachments'] = [{'ref': a['ref']} for a in draft.get('attachments') or []
+                              if isinstance(a, dict) and a.get('ref')]
+    params = {k: v for k, v in draft.items() if k not in MESSAGE_FIELDS}
+    if params:
+        message['params'] = params
+    for link in [message.get('record')] if message.get('record') else []:
+        check_readable(str(link['model']), link['id'])
+    result = send(message, trusted=False)
+    opts = options()
+    if result['status'] == 'dry_run':
+        info = _('Dry run: the message was written to a file, not sent')
+    else:
+        to = [opts['redirect_to']] if opts['redirect_to'] else addresses(message.get('to'), 'to')
+        info = _f('Sent to {to}', to=', '.join(parseaddr(a)[1] for a in to))
+    return {'status': 'success', 'code': 200, 'data': {'id': result['id']},
+            '$flow': {'info': [info]}}
 
 
 @endpoint('smtp_preview', access='smtp.send')

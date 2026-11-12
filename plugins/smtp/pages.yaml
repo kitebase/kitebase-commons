@@ -1,0 +1,66 @@
+# The compose form: a form without a model, opened with a draft the server
+# prepares (smtp_compose, compose_action) and saved by sending it
+# (smtp_compose_send). A refusal keeps it open with what was written.
+#
+# A context changes it with a page of its own whose content refers to this
+# view and replaces what differs: the layout without the copies or the
+# attachments, the body with the placeholders of its table, fields added for
+# the parameters of the text. A field that is not part of the message is a
+# parameter: [[$name]] in the text reads it.
+
+pages:
+
+  smtp_compose:
+    title: Write an email
+    help: A message from one of your accounts. Sending it closes the form; a refusal says what to fix and keeps what you wrote.
+    access: smtp.send
+    content:
+      $ref: views.smtp_compose_form
+
+views:
+
+  smtp_compose_form:
+    type: form
+    source:
+      save_endpoint: smtp_compose_send
+    # The button says Send: a check mark alone would read as Save
+    policy:
+      button_style: icon-label
+    actions:
+      toolbar:
+        - id: save
+          label: Send
+        - cancel
+    layout:
+      - id: addresses
+        type: section
+        fields:
+          - name: account
+            label: From
+            widget: combobox
+            choices_endpoint: smtp_my_accounts
+            required: true
+          - name: to
+            label: To
+            help: The addresses, separated by commas, such as ann@example.com, Bob <bob@example.com>.
+          - name: cc
+            label: Cc
+          - name: bcc
+            label: Bcc
+          - name: subject
+            label: Subject
+            required: true
+      - id: text
+        type: section
+        fields:
+          - name: body
+            label: Text
+            type: Markdown
+            widget: markdown
+          - name: attachments
+            label: Attachments
+            widget: smtp.attachments
+          - name: receipt
+            label: Ask for a receipt
+            type: Boolean
+            help: Asks the recipient's mail program to confirm the reading; many ignore it.

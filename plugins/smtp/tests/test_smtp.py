@@ -41,10 +41,11 @@ CRM_MODEL = {'tables': {
         {'name': 'id', 'type': 'ID'},
         {'name': 'name', 'type': 'String', 'length': 60},
     ]},
-    'Customer': {'columns': [
+    'Customer': {'display_field': 'name', 'columns': [
         {'name': 'id', 'type': 'ID'},
         {'name': 'name', 'type': 'String', 'length': 60},
         {'name': 'region', 'type': 'String', 'length': 10},
+        {'name': 'email', 'type': 'String', 'length': 100},
         {'name': 'since', 'type': 'Date'},
         {'name': 'balance', 'type': 'Numeric', 'precision': 12, 'scale': 2},
         {'name': 'pin', 'type': 'String', 'length': 10, 'secret': True},
@@ -155,6 +156,7 @@ def clean(app, smtpd):
                                  mail_accounts=['office']))
         s.add(app.models['Agent'](id=1, name='Carla Bianchi'))
         s.add(app.models['Customer'](id=42, name='Riverside *Hardware*', region='north',
+                                     email='orders@riverside.example',
                                      since=date(2024, 3, 5), balance=Decimal('1234.50'),
                                      pin='0000', margin=30, agent_id=1))
         s.add(app.models['Customer'](id=43, name='Hillside', region='south'))
@@ -532,3 +534,59 @@ def test_the_plain_text_reads_without_the_escapes_an_editor_writes(app):
     parts = preview(app, record=CUSTOMER, body='a\\_b &amp; c \\*d\\* [[name]]')
     assert parts['text'] == 'a_b & c *d* Riverside *Hardware*'
     assert '<p>a_b &amp; c *d* Riverside *Hardware*</p>' in parts['html']
+
+
+# ── The compose form ──────────────────────────────────────────────────────────
+
+def test_a_row_command_opens_the_form_with_the_draft_of_its_record(app):
+    result = call(app, 'smtp_compose', table='Customer', id=42, subject='Hello')
+    assert result['status'] == 'success', result
+    action = result['data']
+    assert (action['action'], action['page']) == ('open_form', 'smtp_compose')
+    assert action['draft']['values'] == {
+        'account': 'office', 'attachments': [], 'receipt': False, 'subject': 'Hello',
+        'record': {'model': 'Customer', 'id': 42},
+        'to': 'Riverside *Hardware* <orders@riverside.example>'}
+
+
+def test_a_record_the_user_cannot_see_opens_nothing(app, monkeypatch):
+    monkeypatch.setattr(kitebase.access, '_guard', lambda: NorthOnly())
+    assert call(app, 'smtp_compose', table='Customer', id=43)['status_code'] == 404
+
+
+def test_the_page_of_the_form_is_declared(app):
+    page = handle_generic_endpoint(app.dispatcher, 'get_page', {'id': 'smtp_compose'},
+                                   {'username': 'tester', 'id': 7})
+    assert page['status'] == 'success', page
+    content = page['data']['content']
+    assert content['source'] == {'save_endpoint': 'smtp_compose_send'}
+
+
+def test_the_form_sends_its_draft_with_the_other_fields_as_parameters(app, smtpd):
+    staged = attach(app, 'terms.pdf', b'%PDF-1.4')
+    draft = {'account': 'office', 'to': 'Ann <ann@example.com>, bob@example.com',
+             'cc': '', 'subject': 'For [[name]]', 'body': 'Due: [[$total]]',
+             'record': {'model': 'Customer', 'id': 42}, 'total': '12,50', 'receipt': False,
+             'attachments': [{'ref': staged['ref'], 'name': 'terms.pdf'}]}
+    result = handle_generic_endpoint(app.dispatcher, 'smtp_compose_send', {'data': draft},
+                                     {'username': 'tester', 'id': 7})
+    assert result['status'] == 'success', result
+    assert result['$flow'] == {'info': ['Sent to ann@example.com, bob@example.com']}
+    envelope, msg = smtpd[0].last()
+    assert sorted(envelope.rcpt_tos) == ['ann@example.com', 'bob@example.com']
+    assert msg['Subject'] == 'For Riverside *Hardware*'
+    assert msg.get_body(('plain',)).get_content().strip() == 'Due: 12,50'
+    assert [p.get_filename() for p in msg.iter_attachments()] == ['terms.pdf']
+
+
+def test_a_refused_draft_is_an_error_the_form_shows(app, smtpd):
+    result = handle_generic_endpoint(app.dispatcher, 'smtp_compose_send',
+                                     {'data': {'account': 'office', 'to': 'not an address',
+                                               'subject': 'x', 'body': ''}},
+                                     {'username': 'tester', 'id': 7})
+    assert result['status_code'] == 400 and 'not an address' in result['message']
+    assert smtpd[0].envelopes == []
+
+
+def test_the_form_offers_the_users_accounts_only(app):
+    assert [c['value'] for c in call(app, 'smtp_my_accounts')['data']] == ['office']
