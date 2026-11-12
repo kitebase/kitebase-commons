@@ -39,6 +39,8 @@ def seed(app, model):
                 password="admin",
                 email="admin@example.com",
                 is_admin=True,
+                # The account of secrets.example/smtp.yaml: admin writes to the partners
+                mail_accounts=["office"],
             ))
 
         # The role codes belong to the application: the Customers and Suppliers

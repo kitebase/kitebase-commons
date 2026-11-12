@@ -1,0 +1,18 @@
+# secrets/smtp.yaml: the mail accounts of the smtp plugin (kitebase.secrets),
+# one top-level key per account, plus the switches of a development
+# installation. Copy this folder to secrets/, out of git:
+#
+#   cp -r secrets.example secrets && chmod 700 secrets && chmod 600 secrets/*
+#
+# The demo sends nothing: $dry_run writes each message to a file, which the
+# log row names (MailLog.eml) and a mail client opens. Take it away, give a
+# real account, and $redirect_to sends everything to one address of yours.
+$dry_run: true
+# $redirect_to: me@example.com
+
+office:
+  host: smtp.example.com
+  port: 587                 # 587 STARTTLS, 465 SSL; `security:` to force
+  user: office@example.com
+  password: CHANGE-ME
+  from: "Example Trading <office@example.com>"

@@ -1,0 +1,11 @@
+# Email to the partners: the smtp plugin on the demo's partner lists.
+#
+# A plugin of its own because it joins two that do not know each other:
+# partners has no mail, smtp has no partners. It adds the commands to the
+# lists and the two forms with the partner's fields as placeholders.
+name: demo_mail
+version: 0.0.1
+description: Email to the partners of the demo, through the smtp plugin
+license: MIT
+author: "Claudio Driussi"
+depends_on: [demo_ui, smtp]

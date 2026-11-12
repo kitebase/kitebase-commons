@@ -39,6 +39,26 @@ pages:
         - { field: attachments, title: Attachments }
         - { field: error, title: Error }
 
+    # The message under the cursor: its addresses, its text and its files
+    panels:
+      - id: message
+        pos: right
+        width: 460
+        trigger:
+          event: row_click
+          pass: [id]
+        $ref: views.smtp_message_view
+
+  # A mail merge: the ticked rows of a list (smtp_merge), one message each.
+  # A context gives the placeholders of its table with a page of its own, as
+  # for the compose form.
+  smtp_merge:
+    title: Mail merge
+    help: One text to every record ticked in the list, each message with its own values. Nothing leaves if one message cannot.
+    access: smtp.send
+    content:
+      $ref: views.smtp_merge_form
+
 views:
 
   smtp_compose_form:
@@ -86,3 +106,74 @@ views:
             label: Ask for a receipt
             type: Boolean
             help: Asks the recipient's mail program to confirm the reading; many ignore it.
+
+  # One message as it left, read only (smtp_message)
+  smtp_message_view:
+    type: form
+    source:
+      endpoint: smtp_message
+      pass: { id: $trigger.id }
+    policy:
+      editable: false
+    layout:
+      - id: head
+        type: section
+        fields:
+          - { name: subject, label: Subject }
+          - { name: sent_at, label: Sent }
+          - { name: status, label: Status }
+          - { name: sender, label: From }
+          - { name: to, label: To }
+          - { name: cc, label: Cc }
+      - id: text
+        type: section
+        fields:
+          - { name: body, label: Text, type: Markdown, widget: markdown }
+      # What the delivery did: where it went, what it carried, why it failed
+      - id: delivery
+        type: section
+        fields:
+          - { name: attachments, label: Attachments }
+          - { name: delivered_to, label: Delivered to }
+          - { name: error, label: Error }
+
+  smtp_merge_form:
+    type: form
+    source:
+      save_endpoint: smtp_merge_send
+    policy:
+      button_style: icon-label
+    actions:
+      toolbar:
+        - id: save
+          label: Send
+        - cancel
+    layout:
+      - id: addresses
+        type: section
+        fields:
+          - name: account
+            label: From
+            widget: combobox
+            choices_endpoint: smtp_my_accounts
+            required: true
+          - name: recipients
+            label: Recipients
+            readonly: true
+          - name: subject
+            label: Subject
+            required: true
+      - id: text
+        type: section
+        fields:
+          - name: body
+            label: Text
+            type: Markdown
+            widget: markdown
+          - name: attachments
+            label: Attachments
+            widget: smtp.attachments
+          - name: keep_log
+            label: Keep a log of the messages
+            type: Boolean
+            help: Each message is written in the log and linked to its record, where Email sent finds it. Without the log nothing is kept of what left.

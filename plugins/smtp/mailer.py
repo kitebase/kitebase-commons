@@ -33,11 +33,12 @@ written to a file instead of being sent (the row's `eml`); under
 recipients written and the address delivered to.
 """
 import mimetypes
+from dataclasses import dataclass
 import smtplib
 import ssl
 from email.message import EmailMessage
 from email.utils import formataddr, formatdate, getaddresses, make_msgid, parseaddr
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import kitebase.context
 import kitebase.utils
@@ -195,54 +196,92 @@ def _update(app: Any, log_id: Any, **values: Any) -> None:
         session.commit()
 
 
-def send(message: Dict[str, Any], trusted: bool = True) -> Dict[str, Any]:
-    """Send one message and log it; see the module's docstring. `trusted` is
-    False for a message from the client, whose attachments are only the
-    files its user staged."""
+@dataclass
+class Prepared:
+    """A message ready to leave: checked, its placeholders filled, its account
+    chosen and its files read. Nothing is written yet."""
+    clean: Dict[str, Any]
+    parts: Dict[str, Any]
+    acct: Account
+    files: List[Tuple[str, bytes]]
+
+
+def prepare(message: Dict[str, Any], trusted: bool = True,
+            files: Optional[List[Tuple[str, bytes]]] = None) -> Prepared:
+    """Everything that can refuse a message, before anything is written: a mail
+    merge prepares all its messages first, and sends none if one is refused.
+    `files`, already read, spares reading the same attachments for each."""
     app = kitebase.utils.get_app()
     clean = _validated(message)
     parts = complete(clean)
     acct = account(choose(clean.get('account')))
-    files = _attachments(app, clean.get('attachments'), trusted)
-    refs = [ref for ref, _content in files]
+    if files is None:
+        files = _attachments(app, clean.get('attachments'), trusted)
+    return Prepared(clean, parts, acct, files)
+
+
+def read_attachments(items: Any, trusted: bool = True) -> List[Tuple[str, bytes]]:
+    """The attachments of a message as (reference, bytes), for `prepare`."""
+    return _attachments(kitebase.utils.get_app(), items, trusted)
+
+
+def dispatch(p: Prepared, log: bool = True) -> Dict[str, Any]:
+    """Send a prepared message. With `log` (the default) the row is written
+    before the server is contacted and updated with the outcome; without it
+    nothing is written but the dry run's file, and a failure is only raised."""
+    app = kitebase.utils.get_app()
+    clean, parts, acct = p.clean, p.parts, p.acct
+    refs = [ref for ref, _content in p.files]
     opts = options()
     recipients = [opts['redirect_to']] if opts['redirect_to'] else \
         _bare(clean['to'] + clean['cc'] + clean['bcc'])
 
-    MailLog, MailLink = app.models['MailLog'], app.models['MailLink']
-    context = kitebase.context.current() or {}
-    with app.get_session() as session:
-        row = MailLog(status='sending', account=acct.name,
-                      sender=clean.get('from') or acct.sender, reply_to=clean.get('reply_to'),
-                      to=clean['to'], cc=clean['cc'], bcc=clean['bcc'], delivered_to=recipients,
-                      subject=parts['subject'], body=parts['text'],
-                      receipt=bool(clean.get('receipt')), user_id=context.get('id'),
-                      attachments=refs)
-        session.add(row)
-        session.flush()
-        for link in clean['links']:
-            session.add(MailLink(mail_log_id=row.id, model=str(link['model']),
-                                 record_id=str(link['id']), role=link.get('role')))
-        session.commit()
-        log_id = row.id
+    log_id = None
+    if log:
+        MailLog, MailLink = app.models['MailLog'], app.models['MailLink']
+        context = kitebase.context.current() or {}
+        with app.get_session() as session:
+            row = MailLog(status='sending', account=acct.name,
+                          sender=clean.get('from') or acct.sender, reply_to=clean.get('reply_to'),
+                          to=clean['to'], cc=clean['cc'], bcc=clean['bcc'],
+                          delivered_to=recipients, subject=parts['subject'], body=parts['text'],
+                          receipt=bool(clean.get('receipt')), user_id=context.get('id'),
+                          attachments=refs)
+            session.add(row)
+            session.flush()
+            for link in clean['links']:
+                session.add(MailLink(mail_log_id=row.id, model=str(link['model']),
+                                     record_id=str(link['id']), role=link.get('role')))
+            session.commit()
+            log_id = row.id
 
-    msg = build(clean, acct, parts, [(outbox.name_of(ref), content) for ref, content in files])
+    msg = build(clean, acct, parts, [(outbox.name_of(ref), content) for ref, content in p.files])
     if opts['redirect_to']:
         msg['X-Redirected-From'] = ', '.join(_bare(clean['to'] + clean['cc'] + clean['bcc']))
 
     if opts['dry_run']:
         eml = outbox.write_dry_run(app, log_id, msg.as_bytes())
-        _update(app, log_id, eml=eml)
+        if log:
+            _update(app, log_id, eml=eml)
         status = 'dry_run'
     else:
         try:
             deliver(acct, msg, recipients, _timeout(app))
         except (smtplib.SMTPException, OSError) as e:
-            _update(app, log_id, status='failed', error=str(e), attachments=refs,
-                    message_id=msg['Message-ID'])
+            if log:
+                _update(app, log_id, status='failed', error=str(e), attachments=refs,
+                        message_id=msg['Message-ID'])
             raise Unavailable(_f('The mail server did not take the message: {error}',
                                  error=str(e)), data={'id': log_id})
         status = 'sent'
-    _update(app, log_id, status=status, attachments=refs, message_id=msg['Message-ID'],
-            sent_at=now())
+    if log:
+        _update(app, log_id, status=status, attachments=refs, message_id=msg['Message-ID'],
+                sent_at=now())
     return {'id': log_id, 'status': status, 'message_id': msg['Message-ID']}
+
+
+def send(message: Dict[str, Any], trusted: bool = True, log: bool = True) -> Dict[str, Any]:
+    """Send one message and, unless `log` is False, log it; see the module's
+    docstring. `trusted` is False for a message from the client, whose
+    attachments are only the files its user staged."""
+    return dispatch(prepare(message, trusted), log=log)

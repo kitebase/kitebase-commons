@@ -126,7 +126,7 @@ def _recipient(model: str, record_id: Any) -> Optional[str]:
         address = getattr(row, 'email', None) if row is not None else None
         if not address:
             return None
-        display = (table.attributes.get('display_field') or '')
+        display = kitebase.utils.search_info(table).get('display_field') or ''
         name = getattr(row, display, None) if display and display != 'email' else None
         return formataddr((str(name), address)) if name else address
 
@@ -197,6 +197,43 @@ def smtp_preview(data):
     parts['placeholders'] = placeholders(
         (message.get('subject') or '') + '\n' + (message.get('body') or ''))
     return {'status': 'success', 'code': 200, 'data': parts}
+
+
+def _may_read(log: Any, links: List[Any]) -> bool:
+    """Whether the user may read one message: with MailLog.read, as its sender,
+    or as someone who reads one of the records it concerns."""
+    if access.can('MailLog.read'):
+        return True
+    if log.user_id is not None and log.user_id == (kitebase.context.current() or {}).get('id'):
+        return True
+    for link in links:
+        try:
+            if check_readable(link.model, link.record_id):
+                return True
+        except (access.AccessDenied, NotFound):
+            continue
+    return False
+
+
+@endpoint('smtp_message', access=access.PER_TABLE)
+def smtp_message(data):
+    """One message as the detail of the mail sent shows it."""
+    app = kitebase.utils.get_app()
+    MailLog, MailLink = app.models['MailLog'], app.models['MailLink']
+    with access.system(), app.get_session() as session:
+        log = session.get(MailLog, coerce_value(MailLog, 'id', data.get('id')))
+        links = session.query(MailLink).filter(MailLink.mail_log_id == log.id).all() if log else []
+        if log is None or not _may_read(log, links):
+            raise NotFound(_f('No message {id}', id=data.get('id')))
+        return {'status': 'success', 'code': 200, 'data': {
+            'id': log.id, 'status': log.status, 'account': log.account, 'sender': log.sender,
+            'to': ', '.join(log.to or []), 'cc': ', '.join(log.cc or []),
+            'bcc': ', '.join(log.bcc or []), 'delivered_to': ', '.join(log.delivered_to or []),
+            'subject': log.subject, 'body': log.body,
+            'attachments': ', '.join(outbox.name_of(r) for r in log.attachments or []),
+            'sent_at': log.sent_at.isoformat(sep=' ', timespec='minutes') if log.sent_at else None,
+            'error': log.error,
+        }}
 
 
 @endpoint('smtp_sent_page', access=access.PER_TABLE)

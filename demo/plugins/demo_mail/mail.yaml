@@ -1,0 +1,105 @@
+views:
+
+  # Reaches the three partner lists through their shared view: the lists are
+  # merged by `id`, so these commands join the ones demo_ui declares.
+  partner_table:
+    navigator:
+      commands:
+        - id: write_email
+          label: Write an email
+          help: Opens an email to the selected partner, from one of your accounts.
+          scope: row
+          endpoint: smtp_compose
+          params: { page: partner_compose }
+        - id: sent_email
+          label: Email sent
+          help: Lists the messages sent to the selected partner, with the text of each.
+          scope: row
+          endpoint: smtp_sent_page
+        - id: mail_merge
+          label: Mail merge
+          help: One text to every ticked partner, each message with the partner's own values.
+          scope: global
+          endpoint: smtp_merge
+          params: { page: partner_merge }
+
+pages:
+
+  # The compose form of the smtp plugin with the partner's fields to insert.
+  # The content refers to the plugin's view and replaces its layout.
+  partner_compose:
+    title: Email to a partner
+    access: smtp.send
+    content:
+      $ref: views.smtp_compose_form
+      layout:
+        - id: addresses
+          type: section
+          fields:
+            - name: account
+              label: From
+              widget: combobox
+              choices_endpoint: smtp_my_accounts
+              required: true
+            - name: to
+              label: To
+            - name: cc
+              label: Cc
+            - name: subject
+              label: Subject
+              required: true
+        - id: text
+          type: section
+          fields:
+            - name: body
+              label: Text
+              type: Markdown
+              widget: markdown
+              placeholders: &partner_fields
+                - { name: name, label: Name }
+                - { name: trade_name, label: Trade name }
+                - { name: title, label: Title }
+                - { name: city, label: City }
+                - { name: vat_number, label: VAT number }
+                - { name: parent.name, label: Belongs to }
+            - name: attachments
+              label: Attachments
+              widget: smtp.attachments
+            - name: receipt
+              label: Ask for a receipt
+              type: Boolean
+
+  partner_merge:
+    title: Mail merge to partners
+    access: smtp.send
+    content:
+      $ref: views.smtp_merge_form
+      layout:
+        - id: addresses
+          type: section
+          fields:
+            - name: account
+              label: From
+              widget: combobox
+              choices_endpoint: smtp_my_accounts
+              required: true
+            - name: recipients
+              label: Recipients
+              readonly: true
+            - name: subject
+              label: Subject
+              required: true
+        - id: text
+          type: section
+          fields:
+            - name: body
+              label: Text
+              type: Markdown
+              widget: markdown
+              placeholders: *partner_fields
+            - name: attachments
+              label: Attachments
+              widget: smtp.attachments
+            - name: keep_log
+              label: Keep a log of the messages
+              type: Boolean

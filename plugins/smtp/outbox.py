@@ -12,7 +12,8 @@ user's message may carry the files that user staged, never another's,
 whatever reference the client sends. The token keeps two files of the same
 name apart.
 
-A dry run writes the message itself to `mail:dry_run/<yyyymm>/<log id>.eml`.
+A dry run writes the message itself to `mail:dry_run/<yyyymm>/<log id>.eml`
+(`nolog-<token>.eml` for a message sent without a log).
 """
 import secrets as _random
 from typing import Any, Iterable, List, Optional, Tuple
@@ -81,6 +82,8 @@ def read(app: Any, ref: str) -> bytes:
 
 
 def write_dry_run(app: Any, log_id: Any, content: bytes) -> str:
-    """Write the message of a dry run; its reference."""
-    rel = f'dry_run/{today():%Y%m}/{log_id}.eml'
+    """Write the message of a dry run; its reference. A message sent without
+    a log has no id, and a name of its own."""
+    name = log_id if log_id is not None else f'nolog-{_random.token_hex(6)}'
+    rel = f'dry_run/{today():%Y%m}/{name}.eml'
     return f'{ROOT}:{_root(app).provider.create(rel, [content])}'

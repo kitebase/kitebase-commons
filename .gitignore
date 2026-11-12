@@ -10,6 +10,9 @@ demo/clientui/
 demo/*.sqlite
 demo/*.log
 demo/data/
+# The installation's own: credentials (copy secrets.example) and uploaded files
+demo/secrets/
+demo/media/
 
 # Editors / environments
 .venv

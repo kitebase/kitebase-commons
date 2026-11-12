@@ -150,6 +150,46 @@ record with the caller's permissions and record rules: a 403 without the
 table's `read`, a 404 when a rule hides the record. Only then does it return
 the mail linked to it, newest first. The mail of a label needs `MailLog.read`.
 
+## Writing from the interface
+
+Three commands put the plugin on any list, each a `navigator` command (the
+demo's `demo_mail` plugin puts them on the partners):
+
+```yaml
+- { id: write_email, label: Write an email, scope: row,    endpoint: smtp_compose, params: { page: partner_compose } }
+- { id: sent_email,  label: Email sent,     scope: row,    endpoint: smtp_sent_page }
+- { id: mail_merge,  label: Mail merge,     scope: global, endpoint: smtp_merge,   params: { page: partner_merge } }
+```
+
+- **Write an email** opens the compose form, a form without a model, with a
+  draft the server prepares: the user's first account and the record's
+  address when its table has an `email` column. Sending it closes the form.
+  A refusal, such as an address that is not one, keeps it open with what was
+  written.
+- **Email sent** lists the mail about the record, newest first, with the
+  message under the cursor beside it: its addresses, its text, its files.
+- **Mail merge** takes the ticked rows. The form says who will receive the
+  message and who has no address. Every message is prepared before any
+  leaves, so one placeholder that does not resolve for one record sends
+  nothing. Then the messages leave one after the other, sharing the
+  attachments. *Keep a log of the messages* off sends without a row in the
+  log. The sending happens in the request, which is right for tens of
+  messages; thousands, and a provider's quotas, are the work of a job.
+
+`page` names the form, so a context can give its own: a page whose content
+refers to `views.smtp_compose_form` (or `smtp_merge_form`) and replaces its
+layout, typically to offer the placeholders of its table:
+
+```yaml
+- name: body
+  widget: markdown
+  placeholders: [{ name: name, label: Name }, { name: city, label: City }]
+```
+
+Any field of the form that is not part of the message is a parameter of the
+text, read by `[[$name]]`. Another plugin's command that computes values
+opens the form with them through `compose_action(record, page, **values)`.
+
 ## Tests
 
     (cd commons/demo && uv run pytest -q ../plugins/smtp/tests)

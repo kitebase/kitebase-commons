@@ -22,11 +22,17 @@ author: "Claudio Driussi"
 # domain names a role code.
 plugins:
   - path: ../plugins
-    include: [common, users, persons, partners, reports]
+    include: [common, users, persons, partners, reports, smtp]
   - plugins
 
 # db engine for sqlalchemy
 db_engine: "sqlite:///demo.sqlite"
+
+# Where uploaded files live (kitebase.media): the smtp plugin's attachments
+# and the messages of a dry run, out of git.
+media:
+  roots:
+    mail: { type: fs, path: media/mail }
 
 # API configuration
 api:

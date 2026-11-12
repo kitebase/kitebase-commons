@@ -159,7 +159,9 @@ def clean(app, smtpd):
                                      email='orders@riverside.example',
                                      since=date(2024, 3, 5), balance=Decimal('1234.50'),
                                      pin='0000', margin=30, agent_id=1))
-        s.add(app.models['Customer'](id=43, name='Hillside', region='south'))
+        s.add(app.models['Customer'](id=43, name='Hillside', region='south',
+                                     email='info@hillside.example'))
+        s.add(app.models['Customer'](id=44, name='Lakeside', region='north'))
         s.commit()
     yield
 
@@ -608,3 +610,76 @@ def test_the_list_shows_addresses_and_attachments_as_text(app, smtpd):
     row = call(app, 'smtp_sent', model='Customer', id=42)['data'][0]
     assert (row['to'], row['attachments'], row['status']) == (
         'a@example.com, b@example.com', 'terms.pdf', 'sent')
+
+
+# ── The detail of a message ───────────────────────────────────────────────────
+
+def test_the_detail_of_a_message_shows_its_text_and_addresses(app, smtpd):
+    sent = call(app, 'smtp_send', message=message(record=CUSTOMER, body='Dear [[name]]'))
+    detail = call(app, 'smtp_message', id=sent['data']['id'])['data']
+    assert (detail['subject'], detail['body'], detail['to']) == (
+        'Invoice 1033', 'Dear Riverside *Hardware*', 'Ann <ann@example.com>')
+
+
+def test_the_detail_is_for_the_sender_or_who_reads_its_record(app, smtpd, monkeypatch):
+    sent = call(app, 'smtp_send', message=message(record=CUSTOMER))['data']['id']
+    as_other = lambda: handle_generic_endpoint(app.dispatcher, 'smtp_message', {'id': sent},
+                                               {'username': 'other', 'id': 8})
+    assert as_other()['status'] == 'success'                 # reads Customer 42
+    monkeypatch.setattr(kitebase.access, '_guard', lambda: NoCustomers())
+    assert as_other()['status_code'] == 404                  # reads neither it nor the log
+    assert call(app, 'smtp_message', id=sent)['status'] == 'success'   # the sender
+
+
+# ── Mail merge ────────────────────────────────────────────────────────────────
+
+def merge(app, **draft):
+    base = {'account': 'office', 'model': 'Customer', 'ids': [42, 43, 44],
+            'subject': 'News for [[name]]', 'body': 'Dear [[name]], [[$note]]',
+            'note': 'see you', 'keep_log': True, 'recipients': '...'}
+    base.update(draft)
+    return handle_generic_endpoint(app.dispatcher, 'smtp_merge_send', {'data': base},
+                                   {'username': 'tester', 'id': 7})
+
+
+def test_the_merge_command_says_who_receives_and_who_has_no_address(app):
+    action = call(app, 'smtp_merge', table='Customer', ids=[42, 43, 44])['data']
+    assert (action['action'], action['page']) == ('open_form', 'smtp_merge')
+    values = action['draft']['values']
+    assert values['recipients'] == '2 recipients. Without an address, skipped: Lakeside'
+    assert (values['model'], values['ids'], values['keep_log']) == ('Customer', [42, 43, 44], True)
+
+
+def test_a_merge_sends_one_message_per_record_each_with_its_values(app, smtpd):
+    staged = attach(app, 'terms.pdf', b'%PDF-1.4')
+    result = merge(app, attachments=[{'ref': staged['ref'], 'name': 'terms.pdf'}])
+    assert result['status'] == 'success', result
+    assert result['$flow']['info'] == ['2 messages sent', 'Without an address, skipped: Lakeside']
+    got = {e.rcpt_tos[0]: email.message_from_bytes(e.content, policy=policy.default)
+           for e in smtpd[0].envelopes}
+    assert got['orders@riverside.example']['Subject'] == 'News for Riverside *Hardware*'
+    assert got['info@hillside.example'].get_body(('plain',)).get_content().strip() == \
+        'Dear Hillside, see you'
+    assert all([p.get_filename() for p in m.iter_attachments()] == ['terms.pdf'] for m in got.values())
+    assert [m['id'] for m in call(app, 'smtp_sent', model='Customer', id=43)['data']] != []
+    assert len(list((app.root / 'media' / 'mail').rglob('terms*.pdf'))) == 1
+
+
+def test_a_merge_without_a_log_leaves_no_row(app, smtpd):
+    result = merge(app, keep_log=False)
+    assert result['status'] == 'success', result
+    assert len(smtpd[0].envelopes) == 2
+    assert result['$flow']['info'][-1] == 'No log was kept of these messages'
+    with app.get_session() as s:
+        assert s.query(app.models['MailLog']).count() == 0
+
+
+def test_a_message_that_cannot_leave_stops_the_whole_merge(app, smtpd):
+    result = merge(app, body='[[nope]]')
+    assert result['status_code'] == 400
+    assert result['message'].startswith('Nothing was sent. 2 messages cannot leave')
+    assert smtpd[0].envelopes == []
+
+
+def test_a_merge_needs_a_record_with_an_address(app):
+    assert merge(app, ids=[44])['status_code'] == 400
