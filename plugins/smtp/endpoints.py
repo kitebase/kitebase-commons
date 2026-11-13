@@ -30,8 +30,6 @@ system. Whoever sees the record sees the mail about it, and nothing else.
 from email.utils import parseaddr
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import inspect
-
 import kitebase.context
 import kitebase.utils
 from kitebase import access
@@ -39,6 +37,7 @@ from kitebase.endpoint_db import coerce_value
 from kitebase.endpoints import endpoint
 from kitebase.errors import Invalid, NotFound
 from kitebase.media import UploadedFile
+from kitebase.refs import any_readable, check_readable
 from kitebase.i18n import _, _f
 from kitebase.transforms import register_validator
 
@@ -56,23 +55,6 @@ def smtp_accounts(data):
 
 
 register_validator('smtp_accounts', validate_accounts)
-
-
-def check_readable(model: str, record_id: Any) -> bool:
-    """Raise unless the user reads the record: AccessDenied without the table's
-    `read`, NotFound when the record is not there or a rule hides it. False for
-    a name that is no model, a label nobody reads through."""
-    app = kitebase.utils.get_app()
-    Model = app.models.get(model)
-    if Model is None:
-        return False
-    access.check_table(model, 'read')
-    key = inspect(Model).primary_key[0].key
-    value = coerce_value(Model, key, record_id)
-    with app.get_session() as session:
-        if session.get(Model, value) is None or not access.row_visible(session, Model, value):
-            raise NotFound(_f('No {model} {id}', model=model, id=record_id))
-    return True
 
 
 @endpoint('smtp_send', access='smtp.send')
@@ -241,13 +223,7 @@ def _may_read(log: Any, links: List[Any]) -> bool:
         return True
     if log.user_id is not None and log.user_id == (kitebase.context.current() or {}).get('id'):
         return True
-    for link in links:
-        try:
-            if check_readable(link.model, link.record_id):
-                return True
-        except (access.AccessDenied, NotFound):
-            continue
-    return False
+    return any_readable((link.model, link.record_id) for link in links)
 
 
 @endpoint('smtp_message', access=access.PER_TABLE)

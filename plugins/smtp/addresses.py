@@ -43,6 +43,7 @@ from kitebase import access
 from kitebase.endpoint_db import coerce_value
 from kitebase.errors import Invalid, NotFound
 from kitebase.i18n import _f
+from kitebase.refs import check_readable
 
 Provider = Callable[[Any], List[Dict[str, Any]]]
 
@@ -85,7 +86,6 @@ def register_addresses_via(model: str, relation: str) -> None:
             return Target.__name__, getattr(row, inspect(Target).primary_key[0].key)
 
     def provider(record_id: Any) -> List[Dict[str, Any]]:
-        from smtp.endpoints import check_readable
         found = target(record_id)
         if found is None:
             return []

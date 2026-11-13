@@ -33,10 +33,10 @@ from kitebase.endpoint_db import coerce_value
 from kitebase.endpoints import endpoint
 from kitebase.errors import Invalid, Unavailable
 from kitebase.i18n import _, _f
+from kitebase.refs import check_readable
 
 from smtp.accounts import of_user
 from smtp.addresses import check_choice, choose, formatted, of_record
-from smtp.endpoints import check_readable
 from smtp.mailer import dispatch, prepare, read_attachments
 
 # The fields of the merge form that are not parameters of the text
