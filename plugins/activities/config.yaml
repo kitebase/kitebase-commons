@@ -1,0 +1,17 @@
+# Activities on any record: what, when, who, done or to do. One row is the
+# past and the future of the same thing: the call planned for tomorrow, once
+# made, is the same row. A row links to the records it concerns through
+# ActivityLink, and a table declares the parent its activities reach too:
+#
+#   Opportunity:
+#     activities:
+#       follow: [partner_id]
+#
+# See README.md.
+name: activities
+version: 0.0.1
+description: Activities on any record, with the history they make
+license: MIT
+author: "Claudio Driussi"
+url: https://claudiodriussi.it
+depends_on: [common, users]

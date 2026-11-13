@@ -1,0 +1,164 @@
+# Activities and the records they concern.
+
+tables:
+
+  Activity:
+    name: activities
+    label: "Activity"
+    help: |
+      Calls, meetings, notes and things to do, on the records they concern.
+      With a due date or a start it is to do; with no date it is recorded as
+      done.
+    mixins: [TimeStamp]
+    display_field: subject
+    columns:
+      - name: id
+        type: ID
+
+      - name: type_id
+        label: "Type"
+        nullable: False
+        foreign_key:
+          target: ActivityType.id
+          relation: type
+          backref: activities
+
+      - name: subject
+        type: String
+        length: 120
+        nullable: False
+        label: "Subject"
+
+      - name: note
+        type: Text
+        label: "Note"
+
+      - name: user_id
+        label: "Assigned to"
+        help: "Who does it, or did it: whoever writes it, unless someone else is named."
+        foreign_key:
+          target: User.id
+          relation: user
+          backref: activities
+
+      - name: start_at
+        type: DateTime
+        granularity: minute
+        label: "Start"
+        help: "For an appointment, when it starts."
+
+      - name: end_at
+        type: DateTime
+        granularity: minute
+        label: "End"
+        query_rank: low
+
+      - name: due_date
+        type: Date
+        label: "Due"
+
+      - name: done_at
+        type: DateTime
+        granularity: minute
+        label: "Done"
+        help: "When it was done; empty while it is to do."
+
+      - name: priority
+        type: Integer
+        default: 0
+        nullable: false
+        label: "Priority"
+        help: "From -9 to 9, higher first: 0 is normal, 9 the most urgent, below 0 what is parked or waits for time."
+
+      - name: source
+        type: String
+        length: 32
+        label: "Source"
+        help: "Filled when the activity was written automatically (a mail sent, a stage changed); empty when a person wrote it."
+        editable: false
+        query_rank: more
+
+    indexes:
+      - name: idx_activity_user_open
+        columns: [user_id, done_at]
+        description: "The activities of a person, to do first"
+
+  ActivityType:
+    name: activity_types
+    label: "Activity type"
+    help: The kinds of activity, such as call, meeting, note.
+    doc: |
+      The id is the code a plugin writes (`email`). The application seeds the
+      types its people pick; a plugin's own are made on first use from what
+      it registered (api.register_type).
+    tags: [reference]
+    columns:
+      - name: id
+        type: ShortID
+        label: "Code"
+
+      - name: label
+        type: Description
+        label: "Label"
+
+      - name: icon
+        type: String
+        length: 32
+        label: "Icon"
+        help: "The name of an icon, such as phone or mail."
+
+      - name: sequence
+        type: Integer
+        default: 0
+        nullable: false
+        label: "Sequence"
+
+  ActivityLink:
+    name: activity_links
+    label: "Activity link"
+    doc: |
+      The records an activity concerns: a many-to-many whose other side is any
+      record of any table, as MailLink is for the mail. `record_id` is text, so
+      string keys fit as integer ones do, and no foreign key: a deleted record
+      leaves its links behind. Written only through api.py, which adds the
+      parents the tables declare with `activities: follow`; read only through
+      the records the caller can read.
+    columns:
+      - name: id
+        type: ID
+
+      - name: activity_id
+        label: "Activity"
+        nullable: False
+        foreign_key:
+          target: Activity.id
+          owned: true
+          relation: activity
+          backref: links
+
+      - name: model
+        type: String
+        length: 64
+        nullable: False
+        label: "Table"
+        doc: "The name of the model; a name that is no model is a label, kept and never opened."
+
+      - name: record_id
+        type: String
+        length: 64
+        nullable: False
+        label: "Record"
+
+      - name: role
+        type: String
+        length: 16
+        label: "Role"
+        doc: |
+          owner: the record it was written on, one per activity; contact: the
+          person spoken to; mail: the MailLog of a message sent; follow: a
+          parent reached through `activities: follow`; empty: a record concerned.
+
+    indexes:
+      - name: idx_activity_link_record
+        columns: [model, record_id]
+        description: "The history of a record"

@@ -1,0 +1,41 @@
+# Translations of the guide, kept in step with the English by `kitebase sync-help`.
+# Translate the value under the language; an empty one shows the English.
+# `en_old` is the English the translation was made on: review it, then remove the line.
+
+tables.Activity:
+  en: |-
+    Calls, meetings, notes and things to do, on the records they concern.
+    With a due date or a start it is to do; with no date it is recorded as
+    done.
+  it: |-
+    Chiamate, appuntamenti, note e cose da fare, sui record che riguardano.
+    Con una scadenza o un inizio è da fare; senza data è registrata come
+    fatta.
+
+tables.Activity.columns.user_id:
+  en: 'Who does it, or did it: whoever writes it, unless someone else is named.'
+  it: 'Chi la fa, o l''ha fatta: chi la scrive, se non si indica un altro.'
+
+tables.Activity.columns.start_at:
+  en: For an appointment, when it starts.
+  it: Per un appuntamento, quando comincia.
+
+tables.Activity.columns.done_at:
+  en: When it was done; empty while it is to do.
+  it: Quando è stata fatta; vuota finché è da fare.
+
+tables.Activity.columns.priority:
+  en: 'From -9 to 9, higher first: 0 is normal, 9 the most urgent, below 0 what is parked or waits for time.'
+  it: 'Da -9 a 9, più alto prima: 0 è normale, 9 la massima urgenza, sotto lo 0 ciò che è parcheggiato o aspetta che ci sia tempo.'
+
+tables.Activity.columns.source:
+  en: Filled when the activity was written automatically (a mail sent, a stage changed); empty when a person wrote it.
+  it: Compilata quando l'attività è stata scritta in automatico (una mail spedita, uno stadio cambiato); vuota quando l'ha scritta una persona.
+
+tables.ActivityType:
+  en: The kinds of activity, such as call, meeting, note.
+  it: I tipi di attività, come chiamata, appuntamento, nota.
+
+tables.ActivityType.columns.icon:
+  en: The name of an icon, such as phone or mail.
+  it: Il nome di un'icona, come phone o mail.
