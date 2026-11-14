@@ -1,0 +1,6 @@
+# The demo in Italian: `kitebase dev --config config.it.yaml`, or
+# KITEBASE_CONFIG=config.it.yaml for the server and the client alike.
+# Same database: what was born in another language stays as it was, as data.
+extends: config.yaml
+
+locale: it

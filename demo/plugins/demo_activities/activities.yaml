@@ -1,0 +1,62 @@
+tables:
+
+  # A call to Ross of Northwind is in the history of Northwind too
+  Partner:
+    activities.follow: [parent_id]
+
+views:
+
+  # The history of the partner under the cursor, under the list: the form
+  # stays whole, and the history scrolls on its own however long it grows
+  partner_activities:
+    type: plugin
+    component: activities.timeline
+    props:
+      model: Partner
+
+pages:
+
+  partner_list:
+    panels:
+      - id: activities
+        pos: bottom
+        height: 320
+        trigger: { event: row_click, pass: [id] }
+        $ref: views.partner_activities
+
+  customer_list:
+    panels:
+      - id: activities
+        pos: bottom
+        height: 320
+        trigger: { event: row_click, pass: [id] }
+        $ref: views.partner_activities
+
+  supplier_list:
+    panels:
+      - id: activities
+        pos: bottom
+        height: 320
+        trigger: { event: row_click, pass: [id] }
+        $ref: views.partner_activities
+
+  # What the user under the cursor has to do, for whoever reads every
+  # activity: the generated list, with the agenda beside it
+  user_list:
+    $auto: true
+    panels:
+      - id: agenda
+        pos: right
+        width: 460
+        trigger: { event: row_click, pass: [id] }
+        type: plugin
+        component: activities.agenda
+
+  my_activities:
+    title: My activities
+    content:
+      type: plugin
+      component: activities.mine
+
+menu_items:
+  my_activities: { label: My activities, icon: list-todo, order: 5, action: stack_push, panel: my_activities }

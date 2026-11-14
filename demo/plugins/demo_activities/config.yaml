@@ -1,0 +1,12 @@
+# Activities on the partners: the activities plugin in the demo.
+#
+# A plugin of its own because it joins two that do not know each other:
+# partners has no activities, activities has no partners. It puts the history
+# of a partner in a tab of its form, lets a contact's activities reach its
+# company, and adds "My activities" to the menu.
+name: demo_activities
+version: 0.0.1
+description: Activities on the partners of the demo, through the activities plugin
+license: MIT
+author: "Claudio Driussi"
+depends_on: [demo_ui, activities]
