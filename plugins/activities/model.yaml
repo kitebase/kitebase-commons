@@ -41,6 +41,15 @@ tables:
           relation: user
           backref: activities
 
+      - name: author_id
+        label: "Written by"
+        help: "Who wrote it: when it is not the person it is assigned to, it is a request from them. Empty when the system wrote it."
+        editable: false
+        foreign_key:
+          target: User.id
+          relation: author
+          backref: activities_written
+
       - name: start_at
         type: DateTime
         granularity: minute
@@ -88,9 +97,10 @@ tables:
     label: "Activity type"
     help: The kinds of activity, such as call, meeting, note.
     doc: |
-      The id is the code a plugin writes (`email`). The application seeds the
-      types its people pick; a plugin's own are made on first use from what
-      it registered (api.register_type).
+      The id is the code a plugin writes (`email`). The rows of the types the
+      plugins register (api.register_type) are made when first needed, in the
+      language of the application; from then on they are data, renamed,
+      reordered or hidden like any other.
     tags: [reference]
     columns:
       - name: id
@@ -113,6 +123,13 @@ tables:
         nullable: false
         label: "Sequence"
 
+      - name: pick
+        type: Boolean
+        default: true
+        nullable: false
+        label: "Offered"
+        help: "Offered when a person writes an activity; off for a type only the system writes, or one no longer used."
+
   ActivityLink:
     name: activity_links
     label: "Activity link"
@@ -121,7 +138,7 @@ tables:
       record of any table, as MailLink is for the mail. `record_id` is text, so
       string keys fit as integer ones do, and no foreign key: a deleted record
       leaves its links behind. Written only through api.py, which adds the
-      parents the tables declare with `activities: follow`; read only through
+      parents the tables declare with `activities.follow`; read only through
       the records the caller can read.
     columns:
       - name: id
@@ -156,7 +173,7 @@ tables:
         doc: |
           owner: the record it was written on, one per activity; contact: the
           person spoken to; mail: the MailLog of a message sent; follow: a
-          parent reached through `activities: follow`; empty: a record concerned.
+          parent reached through `activities.follow`; empty: a record concerned.
 
     indexes:
       - name: idx_activity_link_record

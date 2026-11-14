@@ -3,8 +3,10 @@ Activities written from code and through the db port.
 
 What has to hold: a row with no date is done when written, one with a due date
 or a start is to do; the record named first is the owner; each record reaches
-the parents its table declares under `activities: follow`, and theirs, once
-each; a type a plugin registered is made on first use, an unknown one refused;
+the parents its table declares under `activities.follow`, and theirs, once
+each; with no record the activity is personal, linked to nothing; the author
+is whoever writes it, set by the server on every port and kept on update; a
+type a plugin registered is made on first use, an unknown one refused;
 written in the caller's session, an activity rolls back with it.
 
     (cd commons/demo && uv run pytest -q ../plugins/activities/tests)
@@ -63,6 +65,20 @@ def test_the_db_port_applies_the_rule_too(app):
     with app.get_session() as s:
         row = s.query(app.models['Activity']).one()
         assert row.done_at is not None
+
+
+def test_the_db_port_sets_the_author_and_keeps_it(app):
+    def send(method, data, **more):
+        return CommandDispatcher().send({
+            'operation': 'db', 'context': {'id': 7, 'username': 'u7'},
+            'parameters': {'table': 'Activity', 'method': method, 'data': data, **more}})
+    created = send('create', {'type_id': 'call', 'subject': 'From a form', 'author_id': 8})
+    assert created['status'] == 'success', created
+    with app.get_session() as s:
+        row_id = s.query(app.models['Activity']).one().id
+    assert activity(app, row_id).author_id == 7
+    send('update', {'subject': 'Changed', 'author_id': 8}, id=row_id)
+    assert activity(app, row_id).author_id == 7
 
 
 # ── Priority ─────────────────────────────────────────────────────────────────
@@ -146,10 +162,14 @@ def test_an_unknown_type_is_refused(app):
 
 
 def test_a_plugin_registers_its_own_type(app):
-    api().register_type('stage', 'Stage change', 'flag')
-    api().log_activity(('Deal', 10), 'stage', 'From Contact to Offer')
-    with app.get_session() as s:
-        assert s.get(app.models['ActivityType'], 'stage').icon == 'flag'
+    saved = api()._TYPES.snapshot()
+    try:
+        api().register_type('stage', 'Stage change', 'flag')
+        api().log_activity(('Deal', 10), 'stage', 'From Contact to Offer')
+        with app.get_session() as s:
+            assert s.get(app.models['ActivityType'], 'stage').icon == 'flag'
+    finally:
+        api()._TYPES.restore(saved)
 
 
 # ── The caller's transaction ─────────────────────────────────────────────────
@@ -172,3 +192,11 @@ def test_the_current_user_is_assigned_unless_another_is_named(app):
     finally:
         kitebase.context.replace({})
     assert (mine.user_id, nobody.user_id) == (7, None)
+    assert (mine.author_id, nobody.author_id) == (7, 7)
+
+
+def test_with_no_record_it_is_personal_and_linked_to_nothing(app):
+    activity_id = api().log_activity(None, 'todo', 'Renew the domain',
+                                     due_date=datetime.date(2026, 12, 1), user_id=7)
+    assert links(app, activity_id) == []
+    assert activity(app, activity_id).done_at is None

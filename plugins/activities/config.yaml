@@ -4,8 +4,7 @@
 # ActivityLink, and a table declares the parent its activities reach too:
 #
 #   Opportunity:
-#     activities:
-#       follow: [partner_id]
+#     activities.follow: [partner_id]
 #
 # See README.md.
 name: activities

@@ -16,6 +16,10 @@ tables.Activity.columns.user_id:
   en: 'Who does it, or did it: whoever writes it, unless someone else is named.'
   it: 'Chi la fa, o l''ha fatta: chi la scrive, se non si indica un altro.'
 
+tables.Activity.columns.author_id:
+  en: 'Who wrote it: when it is not the person it is assigned to, it is a request from them. Empty when the system wrote it.'
+  it: 'Chi l''ha scritta: se non è chi deve farla, è una sua richiesta. Vuota quando l''ha scritta il sistema.'
+
 tables.Activity.columns.start_at:
   en: For an appointment, when it starts.
   it: Per un appuntamento, quando comincia.
@@ -39,3 +43,7 @@ tables.ActivityType:
 tables.ActivityType.columns.icon:
   en: The name of an icon, such as phone or mail.
   it: Il nome di un'icona, come phone o mail.
+
+tables.ActivityType.columns.pick:
+  en: Offered when a person writes an activity; off for a type only the system writes, or one no longer used.
+  it: Proposto quando una persona scrive un'attività; spento per un tipo che scrive solo il sistema, o che non si usa più.

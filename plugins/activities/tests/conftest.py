@@ -21,15 +21,15 @@ BENCH_MODEL = {'tables': {
     'Customer': {'name': 'customers', 'columns': [
         {'name': 'id', 'type': 'ID'},
         {'name': 'name', 'type': 'String', 'length': 60}]},
-    'Deal': {'name': 'deals', 'activities': {'follow': ['customer_id']}, 'columns': [
+    'Deal': {'name': 'deals', 'activities.follow': ['customer_id'], 'columns': [
         {'name': 'id', 'type': 'ID'},
         {'name': 'name', 'type': 'String', 'length': 60},
         {'name': 'customer_id', 'foreign_key': {'target': 'Customer.id'}}]},
     # A typo in `follow`: said at the first activity, not followed in silence
-    'Note': {'name': 'notes', 'activities': {'follow': ['customer']}, 'columns': [
+    'Note': {'name': 'notes', 'activities.follow': ['customer'], 'columns': [
         {'name': 'id', 'type': 'ID'},
         {'name': 'customer_id', 'foreign_key': {'target': 'Customer.id'}}]},
-    'Job': {'name': 'jobs', 'activities': {'follow': ['deal_id']}, 'columns': [
+    'Job': {'name': 'jobs', 'activities.follow': ['deal_id'], 'columns': [
         {'name': 'id', 'type': 'ID'},
         {'name': 'name', 'type': 'String', 'length': 60},
         {'name': 'deal_id', 'foreign_key': {'target': 'Deal.id'}}]},

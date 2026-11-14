@@ -6,8 +6,10 @@
                  also=[('MailLog', 88, 'mail')], source='smtp', session=session)
 
 The record named first is the owner, the one the activity was written on; the
-others are concerned by it. Each record reaches the parents its table declares
-(`activities: follow: [partner_id]`), and theirs in turn, so the history of a
+others are concerned by it. With no record (`None`) the activity is personal:
+only the person it is assigned to sees it, and whoever reads the table without
+condition. Each record reaches the parents its table declares
+(`activities.follow: [partner_id]`), and theirs in turn, so the history of a
 partner holds what was written on its opportunities and documents.
 
 These functions are for code, which answers for what it writes: they check no
@@ -22,13 +24,13 @@ import kitebase.utils
 from kitebase import apptime
 from kitebase.endpoint_db import coerce_value
 from kitebase.errors import Invalid
-from kitebase.i18n import _, _f
+from kitebase.i18n import _, _f, use_locale
 from kitebase.registry import Registry, caller
 
 Ref = Union[Tuple[str, Any], Tuple[str, Any, Optional[str]], Dict[str, Any]]
 
-# The types a plugin writes, made on first use: code -> (label, icon)
-_TYPES: Registry[Tuple[str, Optional[str]]] = Registry('activity_types', 'activity type')
+# The types a plugin writes, made on first use: code -> (label, icon, pick)
+_TYPES: Registry[Tuple[str, Optional[str], bool]] = Registry('activity_types', 'activity type')
 
 _MISSING = object()
 
@@ -40,13 +42,39 @@ def _base_types() -> None:
     for code, label, icon in (('note', 'Note', 'sticky-note'), ('call', 'Call', 'phone'),
                               ('meeting', 'Meeting', 'users'), ('email', 'Email', 'mail'),
                               ('todo', 'To do', 'check-square')):
-        _TYPES.add(code, (label, icon), owner=__name__)
+        _TYPES.add(code, (label, icon, True), owner=__name__)
 
 
-def register_type(code: str, label: str, icon: Optional[str] = None) -> None:
-    """A type this plugin writes: its row is made the first time it is used,
-    so a plugin needs no seed. The application may rename it afterwards."""
-    _TYPES.add(code, (label, icon), owner=caller())
+def register_type(code: str, label: str, icon: Optional[str] = None,
+                  pick: bool = True) -> None:
+    """A type this plugin writes: its row is made when first needed, so a
+    plugin needs no seed. `pick=False` for a type only code writes (a stage
+    changed), which a person is not offered. The application may rename,
+    reorder or hide it afterwards: from then on the row decides."""
+    _TYPES.add(code, (label, icon, pick), owner=caller())
+
+
+def make_types(session: Any) -> None:
+    """Make the rows of the registered types the table has not got yet, so
+    the application finds them all where it changes them. A row is born in the
+    language of the application, whoever asks first, and after the types
+    already there."""
+    app = kitebase.utils.get_app()
+    Type = app.models['ActivityType']
+    have = {code for (code,) in session.query(Type.id)}
+    for place, (code, _known) in enumerate(_TYPES.items(), 1):
+        if code not in have:
+            _make(session, code, sequence=place * 10)
+
+
+def _make(session: Any, code: str, sequence: int = 0) -> None:
+    app = kitebase.utils.get_app()
+    label, icon, pick = _TYPES[code]
+    with use_locale(app.plugins.config.get('locale', 'en')):
+        label = _(label)
+    session.add(app.models['ActivityType'](id=code, label=label, icon=icon, pick=pick,
+                                           sequence=sequence))
+    session.flush()
 
 
 def settle(values: Dict[str, Any]) -> None:
@@ -83,22 +111,19 @@ def _type(session: Any, code: str) -> None:
     Type = app.models['ActivityType']
     if session.get(Type, code) is not None:
         return
-    known = _TYPES.get(code)
-    if known is None:
+    if code not in _TYPES:
         raise Invalid(_f('Unknown activity type: {code}', code=code))
-    label, icon = known
-    session.add(Type(id=code, label=_(label), icon=icon))
-    session.flush()
+    _make(session, code, sequence=10 * (list(_TYPES).index(code) + 1))
 
 
 def parents(session: Any, model: str, record_id: Any) -> List[Tuple[str, str]]:
     """The records an activity on this one reaches too: the foreign keys its
-    table names under `activities: follow`, that are set on the row."""
+    table names under `activities.follow`, that are set on the row."""
     app = kitebase.utils.get_app()
     table, Model = app.tables.get(model), app.models.get(model)
     if table is None or Model is None:
         return []
-    follow = (table.attributes.get('activities') or {}).get('follow') or []
+    follow = table.attributes.get('activities.follow') or []
     if not follow:
         return []
     key = inspect(Model).primary_key[0].key
@@ -111,7 +136,7 @@ def parents(session: Any, model: str, record_id: Any) -> List[Tuple[str, str]]:
         fk = (columns[name].attributes.get('foreign_key') or {}) if name in columns else {}
         target = fk.get('table')
         if target is None:
-            raise ValueError(f"{model}: 'activities: follow' names {name!r}, "
+            raise ValueError(f"{model}: 'activities.follow' names {name!r}, "
                              f"which is no foreign key of the table")
         value = getattr(row, name, None)
         if value is not None:
@@ -139,24 +164,28 @@ def link(session: Any, activity_id: int, refs: Iterable[Ref]) -> None:
     session.flush()
 
 
-def log_activity(on: Ref, type: str, subject: str, *, also: Iterable[Ref] = (),
+def log_activity(on: Optional[Ref], type: str, subject: str, *, also: Iterable[Ref] = (),
                  note: Optional[str] = None, user_id: Any = _MISSING,
                  start_at: Any = None, end_at: Any = None, due_date: Any = None,
                  done_at: Any = None, priority: int = 0, source: Optional[str] = None,
                  session: Any = None) -> int:
     """
-    Write an activity on the record `on`, linked to the records in `also`;
-    the id of the new row. With no date it is a fact, done now (`settle`).
+    Write an activity on the record `on`, or on none, linked to the records
+    in `also`; the id of the new row. With no date it is a fact, done now
+    (`settle`).
 
     `user_id` is the person it is assigned to: the current user when not
-    given, nobody for the work of the system. With `session` it is written in
+    given, nobody for the work of the system. The author is the current user,
+    nobody when there is none. With `session` it is written in
     the caller's transaction, which commits it; without, in a session of its own.
     """
-    owner = _ref(on)
+    owner = _ref(on) if on is not None else None
     others = [_ref(r) for r in also]
+    me = (kitebase.context.current() or {}).get('id')
     if user_id is _MISSING:
-        user_id = (kitebase.context.current() or {}).get('id')
+        user_id = me
     values = {'type_id': type, 'subject': subject, 'note': note, 'user_id': user_id,
+              'author_id': me,
               'start_at': start_at, 'end_at': end_at, 'due_date': due_date,
               'done_at': done_at, 'priority': priority, 'source': source}
     if not valid_priority(priority):
@@ -172,13 +201,15 @@ def log_activity(on: Ref, type: str, subject: str, *, also: Iterable[Ref] = (),
     return _write(session, values, owner, others)
 
 
-def _write(session: Any, values: Dict[str, Any], owner: Tuple[str, str, Optional[str]],
+def _write(session: Any, values: Dict[str, Any],
+           owner: Optional[Tuple[str, str, Optional[str]]],
            others: List[Tuple[str, str, Optional[str]]]) -> int:
     _type(session, values['type_id'])
     row = kitebase.utils.get_app().models['Activity'](**values)
     session.add(row)
     session.flush()
-    link(session, row.id, [(owner[0], owner[1], owner[2] or 'owner')] + others)
+    first = [(owner[0], owner[1], owner[2] or 'owner')] if owner is not None else []
+    link(session, row.id, first + others)
     return row.id
 
 

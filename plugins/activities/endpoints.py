@@ -2,17 +2,19 @@
 
 `activity_timeline` is the history of one record: the activities linked to
 it, to do first (overdue, today, upcoming), then the done ones, newest first.
-`activity_mine` is what the current user has to do. `activity_log` writes an
-activity on a record, `activity_done` marks one done or to do again,
-`activity_postpone` moves it to another day. `activity_types` is the
-vocabulary a form picks from.
+`activity_mine` is what the current user has to do, or the user `user_id`
+names, for whoever reads every activity. Both take `state`, `todo`, `done` or
+`all`: the timeline shows all, the user's list what is to do. `activity_add`
+writes an activity, on a record or personal, `activity_done` marks one done or
+to do again, `activity_postpone` moves it to another day. `activity_types` is
+the vocabulary a form picks from.
 
 Who sees an activity: whoever reads one of the records it is linked to, the
-user it is assigned to, and whoever reads the table without condition. Who
-changes one: the user it is assigned to, and whoever may update activities
-and sees one of its records. A record is read with the user's permissions and
-record rules (kitebase.refs); the links are read for the system once the
-record has been read.
+user it is assigned to, its author, and whoever reads the table without
+condition. Who changes one: the user it is assigned to, its author, and
+whoever may update activities and sees one of its records. A record is read
+with the user's permissions and record rules (kitebase.refs); the links are
+read for the system once the record has been read.
 """
 import datetime
 from typing import Any, Dict, Iterable, List, Optional
@@ -26,7 +28,7 @@ from kitebase.errors import Invalid, NotFound
 from kitebase.i18n import _, _f
 from kitebase.refs import any_readable, check_readable, label
 
-from activities.api import log_activity, priority_text, valid_priority
+from activities.api import log_activity, make_types, priority_text, valid_priority
 
 
 def _ok(data: Any) -> Dict[str, Any]:
@@ -96,6 +98,8 @@ def _items(session: Any, rows: Iterable[Any], here: Optional[tuple] = None) -> L
             'subject': row.subject, 'note': row.note,
             'user_id': row.user_id,
             'user': label('User', row.user_id) if row.user_id is not None else None,
+            'author_id': row.author_id,
+            'author': label('User', row.author_id) if row.author_id is not None else None,
             'start_at': _iso(row.start_at), 'end_at': _iso(row.end_at),
             'due_date': _iso(row.due_date), 'done_at': _iso(row.done_at),
             'day': _iso(day), 'when': _when(row, today),
@@ -112,16 +116,20 @@ def _links(session: Any, activity_id: Any) -> List[tuple]:
             session.query(Link).filter(Link.activity_id == activity_id)]
 
 
+def _concerns_me(activity: Any) -> bool:
+    """Assigned to the user, or written by them."""
+    me = _me()
+    return me is not None and me in (activity.user_id, activity.author_id)
+
+
 def _may_read(activity: Any, links: List[tuple]) -> bool:
-    if access.can('Activity.read') and access.row_conditions('Activity', 'read') is None:
+    if _reads_all():
         return True
-    if activity.user_id is not None and activity.user_id == _me():
-        return True
-    return any_readable(links)
+    return _concerns_me(activity) or any_readable(links)
 
 
 def _may_change(activity: Any, links: List[tuple]) -> bool:
-    if activity.user_id is not None and activity.user_id == _me():
+    if _concerns_me(activity):
         return True
     return access.can('Activity.update') and any_readable(links)
 
@@ -140,8 +148,30 @@ def _activity(session: Any, data: Dict[str, Any], change: bool = False) -> Any:
     return row
 
 
-def _record(data: Dict[str, Any]) -> tuple:
+def _reads_all() -> bool:
+    """May read every activity: the table with no record rule on it."""
+    return access.can('Activity.read') and access.row_conditions('Activity', 'read') is None
+
+
+def _state(data: Dict[str, Any], default: str) -> str:
+    state = data.get('state') or default
+    if state not in ('todo', 'done', 'all'):
+        raise Invalid(_("'state' is todo, done or all"))
+    return state
+
+
+def _filtered(query: Any, Activity: Any, state: str) -> Any:
+    if state == 'todo':
+        return query.filter(Activity.done_at.is_(None))
+    if state == 'done':
+        return query.filter(Activity.done_at.isnot(None))
+    return query
+
+
+def _record(data: Dict[str, Any], optional: bool = False) -> Optional[tuple]:
     model, record_id = data.get('model'), data.get('id')
+    if optional and not model and record_id is None:
+        return None
     if not model or record_id is None:
         raise Invalid(_("'model' and 'id' name the record"))
     if not check_readable(str(model), record_id):
@@ -151,42 +181,60 @@ def _record(data: Dict[str, Any]) -> tuple:
 
 @endpoint('activity_types', access='ActivityType.read')
 def activity_types(data):
+    """The types a person picks from, as the table holds them: the registered
+    ones are made first, so the application finds them all to rename, reorder
+    or hide (`pick`). In the order of `sequence`."""
     app = kitebase.utils.get_app()
     Type = app.models['ActivityType']
-    with app.get_session() as session:
-        rows = session.query(Type).order_by(Type.sequence, Type.id).all()
+    with access.system(), app.get_session() as session:
+        make_types(session)
+        session.commit()
+        rows = session.query(Type).filter(Type.pick.is_(True)).order_by(Type.sequence, Type.id)
         return _ok([{'value': r.id, 'label': r.label or r.id, 'icon': r.icon} for r in rows])
 
 
 @endpoint('activity_timeline', access=access.PER_TABLE)
 def activity_timeline(data):
     here = _record(data)
+    state = _state(data, 'all')
     app = kitebase.utils.get_app()
     Activity, Link = app.models['Activity'], app.models['ActivityLink']
     with access.system(), app.get_session() as session:
-        rows = (session.query(Activity).join(Link, Link.activity_id == Activity.id)
-                .filter(Link.model == here[0], Link.record_id == here[1]).all())
+        query = (session.query(Activity).join(Link, Link.activity_id == Activity.id)
+                 .filter(Link.model == here[0], Link.record_id == here[1]))
+        rows = _filtered(query, Activity, state).all()
         return _ok(_items(session, rows, here))
 
 
 @endpoint('activity_mine', access=access.AUTHENTICATED)
 def activity_mine(data):
+    """The activities assigned to the user, or to `user_id`: someone else's
+    agenda is read by whoever reads every activity."""
     me = _me()
-    if me is None:
-        return _ok([])
+    state = _state(data, 'todo')
     app = kitebase.utils.get_app()
     Activity = app.models['Activity']
+    who = me
+    if data.get('user_id') not in (None, ''):
+        who = coerce_value(Activity, 'user_id', data['user_id'])
+        if who != me and not _reads_all():
+            raise access.AccessDenied('Activity.read')
+    if who is None:
+        return _ok([])
     with access.system(), app.get_session() as session:
-        rows = (session.query(Activity)
-                .filter(Activity.user_id == me, Activity.done_at.is_(None)).all())
+        query = session.query(Activity).filter(Activity.user_id == who)
+        rows = _filtered(query, Activity, state).all()
         return _ok(_items(session, rows))
 
 
-@endpoint('activity_log', access='Activity.create')
-def activity_log(data):
-    """Write an activity on a record the user reads, as the timeline does."""
-    model, record_id = _record(data)
-    Activity = kitebase.utils.get_app().models['Activity']
+@endpoint('activity_add', access='Activity.create')
+def activity_add(data):
+    """Write an activity on a record the user reads, as the timeline does, or
+    with no record, a personal one. It is assigned to the user, or to the
+    user `user_id` names: then it is a request from the one who writes it."""
+    here = _record(data, optional=True)
+    app = kitebase.utils.get_app()
+    Activity, User = app.models['Activity'], app.models['User']
     values = {key: coerce_value(Activity, key, data.get(key))
               for key in ('due_date', 'start_at', 'end_at') if data.get(key) not in (None, '')}
     priority = data.get('priority', 0)
@@ -196,11 +244,16 @@ def activity_log(data):
         raise Invalid(priority_text())
     if not data.get('type') or not (data.get('subject') or '').strip():
         raise Invalid(_('An activity needs a type and a subject'))
-    activity_id = log_activity((model, record_id), str(data['type']), data['subject'].strip(),
+    if data.get('user_id') not in (None, ''):
+        user_id = coerce_value(Activity, 'user_id', data['user_id'])
+        with access.system(), app.get_session() as session:
+            if session.get(User, user_id) is None:
+                raise Invalid(_f('No user {id}', id=data['user_id']))
+        values['user_id'] = user_id
+    activity_id = log_activity(here, str(data['type']), data['subject'].strip(),
                                note=data.get('note') or None, priority=priority, **values)
-    app = kitebase.utils.get_app()
     with access.system(), app.get_session() as session:
-        return _ok(_items(session, [session.get(Activity, activity_id)], (model, record_id))[0])
+        return _ok(_items(session, [session.get(Activity, activity_id)], here)[0])
 
 
 @endpoint('activity_done', access=access.PER_TABLE)

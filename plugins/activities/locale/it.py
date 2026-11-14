@@ -15,5 +15,8 @@ register_translations('it', {
         "Senza data un'attività è un fatto: dalle una data per renderla da fare",
     "'date' is the new day, as YYYY-MM-DD": "'date' è il nuovo giorno, come AAAA-MM-GG",
     'A done activity is not postponed': "Un'attività fatta non si rimanda",
+    'Offered':                  'Proposto',
+    'No user {id}':             'Utente {id} non trovato',
+    "'state' is todo, done or all": "'state' è todo, done o all",
     'A record is a model and an id, not {ref}': 'Un record è un modello e un id, non {ref}',
 })
