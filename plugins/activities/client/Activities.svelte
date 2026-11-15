@@ -26,6 +26,10 @@
     'To do': 'Da fare',
     'All': 'Tutte',
     'Show': 'Mostra',
+    'Open': 'Apri',
+    'Delete': 'Elimina',
+    'Delete this activity?': 'Eliminare questa attività?',
+    'Activity': 'Attività',
   });
 </script>
 
@@ -38,13 +42,20 @@
    * To do first, done after, as the server sorts them. A thing to do is
    * marked done or postponed in place; a done one with a date can be made to
    * do again. A new activity with no due date is a fact recorded, done now.
+   * The subject opens the activity's form (`activity_form`) on the stack, for
+   * what the line does not write; the list reads again when it is closed.
    */
+  import { getContext } from 'svelte';
+  import { stack as globalStack } from '$kitebase/stack/stack.svelte';
+  import type { StackInstance } from '$kitebase/stack/stack.svelte';
+  import DataFormView from '$kitebase/components/DataFormView.svelte';
+  import { msgbox } from '$kitebase/components/msgbox.svelte';
   import { _ } from '$kitebase/i18n';
   import { api } from '$kitebase/api/client';
   import { errorText } from '$kitebase/api/envelope';
   import { resolveIcon } from '$kitebase/components/icons';
   import { ToggleGroup } from 'bits-ui';
-  import { Circle, CircleCheck, List } from '@lucide/svelte';
+  import { Circle, CircleCheck, List, Trash2 } from '@lucide/svelte';
 
   interface Ref {
     model: string;
@@ -103,6 +114,8 @@
     endpoint, record = null, userId = null, empty, defaultType, defaultState = 'all',
     showUser = true, onchange,
   }: Props = $props();
+
+  const stack = getContext<StackInstance>('kb:stack') ?? globalStack;
 
   const STATES = [
     { value: 'todo', text: 'To do', Icon: Circle },
@@ -195,6 +208,19 @@
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   }
 
+  /** The whole activity, in its form: the list reads again when it closes. */
+  function open(item: Item) {
+    stack.push(DataFormView, {
+      formId: 'activity_form', recordId: item.id, title: _('Activity'),
+      onSaved: () => void load(), onCancel: () => void load(),
+    });
+  }
+
+  async function remove(item: Item) {
+    if (!(await msgbox.confirm(_('Delete this activity?'), item.subject))) return;
+    await act('db', { table: 'Activity', method: 'delete', id: item.id });
+  }
+
   async function postpone(id: number, date: string) {
     postponing = null;
     if (date) await act('activity_postpone', { id, date });
@@ -248,7 +274,8 @@
           </span>
           <div class="body">
             <div class="line">
-              <span class="subject">{item.subject}</span>
+              <button type="button" class="subject" title={_('Open')}
+                      onclick={() => open(item)}>{item.subject}</button>
               {#if item.priority}
                 <span class="priority" class:high={item.priority > 0}
                       title={_('Priority')}>{item.priority > 0 ? '+' : ''}{item.priority}</span>
@@ -286,6 +313,8 @@
                 {_('Mark done')}
               </button>
             {/if}
+            <button type="button" class="remove" title={_('Delete')} aria-label={_('Delete')}
+                    onclick={() => remove(item)}><Trash2 size={14} /></button>
           </div>
         </li>
       {/each}
@@ -401,6 +430,29 @@
     display: flex;
     gap: 0.5rem;
     align-items: baseline;
+  }
+  button.remove {
+    border-color: transparent;
+    color: var(--kb-text-subtle);
+    display: flex;
+    align-items: center;
+  }
+  button.remove:hover {
+    color: var(--kb-danger);
+  }
+  button.subject {
+    border: none;
+    background: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  button.subject:hover {
+    color: var(--kb-accent);
+    text-decoration: underline;
+    background: none;
   }
   .item:not(.done) .subject {
     font-weight: 500;

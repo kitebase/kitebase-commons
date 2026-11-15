@@ -1,0 +1,55 @@
+# The form of one activity, opened from a row of the lists (the subject is the
+# link): what the line on top does not write, an appointment's hours, the note,
+# the priority, another person, and the correction of what was written.
+#
+# A plain form on the table: it reads and writes through the db port, so the
+# rules of rules.py hold (the author is kept, the priority checked, a row with
+# no date recorded as done) and the access is the application's grants.
+# Lowercase `{model}_form`, so it is also the form a list of activities opens.
+
+pages:
+
+  activity_form:
+    title: Activity
+    content:
+      type: form
+      source:
+        model: Activity
+        id: $props.id
+      layout:
+        - id: what
+          type: section
+          columns:
+            - id: main
+              fields:
+                - name: type_id
+                  width: 30%
+                - name: subject
+                  width: 70%
+        - id: text
+          type: section
+          columns:
+            - id: main
+              fields:
+                - name: note
+                  widget: textarea
+        - id: when
+          type: section
+          columns:
+            - id: main
+              fields:
+                - name: start_at
+                - name: end_at
+                - name: due_date
+                - name: done_at
+        - id: who
+          type: section
+          columns:
+            - id: main
+              fields:
+                - name: user_id
+                  width: 40%
+                - name: priority
+                  width: 20%
+                - name: author_id
+                  width: 40%

@@ -102,6 +102,7 @@ tables:
       language of the application; from then on they are data, renamed,
       reordered or hidden like any other.
     tags: [reference]
+    display_field: label
     columns:
       - name: id
         type: ShortID

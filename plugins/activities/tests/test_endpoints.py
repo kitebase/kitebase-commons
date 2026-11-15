@@ -270,3 +270,44 @@ def test_a_type_not_picked_is_not_offered(app):
         assert 'note' not in [t['value'] for t in call('activity_types')['data']]
     finally:
         api._TYPES.restore(saved)
+
+
+# ── The form: the db port and the grants of the README ───────────────────────
+
+FORM = {'Activity.read': None, 'User.label': None,
+        'Activity.update': [{'user_id': '$ctx.id'}, {'author_id': '$ctx.id'}],
+        'Activity.delete': [{'author_id': '$ctx.id'}]}
+
+
+def db(method, **parameters):
+    return call('db', table='Activity', method=method, **parameters)
+
+
+def test_the_form_changes_what_is_assigned_to_me_or_written_by_me(app):
+    mine = log_activity(('Customer', 1), 'call', 'Mine', due_date=day(1), user_id=7)
+    theirs = log_activity(('Customer', 1), 'call', 'Theirs', due_date=day(1), user_id=8)
+    as_user(7, FORM)
+    written = log_activity(('Customer', 1), 'call', 'For Other', due_date=day(1), user_id=8)
+    assert db('update', id=mine, data={'subject': 'Mine, changed'})['status'] == 'success'
+    assert db('update', id=written, data={'priority': 5})['status'] == 'success'
+    assert db('update', id=theirs, data={'subject': 'Not mine'})['code'] == 403
+    with app.get_session() as s:
+        assert s.get(app.models['Activity'], theirs).subject == 'Theirs'
+
+
+def test_the_form_keeps_the_rules_taking_the_date_away_records_it_done(app):
+    mine = log_activity(('Customer', 1), 'call', 'Call back', due_date=day(1), user_id=7)
+    as_user(7, FORM)
+    assert db('update', id=mine, data={'due_date': None})['status'] == 'success'
+    with app.get_session() as s:
+        row = s.get(app.models['Activity'], mine)
+        assert row.done_at is not None and row.author_id is None
+
+
+def test_only_the_author_deletes(app):
+    assigned = log_activity(('Customer', 1), 'call', 'Assigned', user_id=7)
+    as_user(7, FORM)
+    written = log_activity(('Customer', 1), 'call', 'Written', user_id=8)
+    assert db('delete', id=assigned)['code'] == 403
+    assert db('delete', id=written)['status'] == 'success'
+

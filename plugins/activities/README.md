@@ -142,6 +142,26 @@ Three components, which the application places:
   list of users, for whoever reads every activity: what is written there is
   for that user.
 
+The subject of a row opens the activity's form, `activity_form` (in
+`pages.yaml`), for what the line does not write: an appointment's hours, the
+note, the priority, another person, a correction. It is a plain form on the
+table, read and written through the db port, so the rules hold there too and
+the access is the application's. A row is deleted from its bin, after a
+question.
+
+**The grants of the form.** The endpoints let the person an activity is
+assigned to, and its author, change it with no permission on the table. The
+form goes through the db port, which asks for one: the application gives it as
+a record rule, to the role it chooses (ACL.md, grants with a condition):
+
+```yaml
+grants:
+  - Activity.update: { where: { $or: [{user_id: $ctx.id}, {author_id: $ctx.id}] } }
+  - Activity.delete: { where: { author_id: $ctx.id } }
+```
+
+With no ACL loaded, as in the demo, everything is allowed.
+
 All three write with the line on top (type, subject, due date: with none, the
 activity is recorded as done), mark done or postpone in place, and filter
 what is to do, done, or all: the timeline opens on all, the lists of a user

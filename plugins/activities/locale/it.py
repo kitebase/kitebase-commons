@@ -1,6 +1,24 @@
 from kitebase.i18n import register_translations
 
 register_translations('it', {
+    # The tables and their columns, as the forms and Tables show them
+    'Activity':                 'Attività',
+    'Activity type':            'Tipo di attività',
+    'Activity link':            'Collegamento di attività',
+    'Type':                     'Tipo',
+    'Assigned to':              'Assegnata a',
+    'Written by':               'Scritta da',
+    'Start':                    'Inizio',
+    'End':                      'Fine',
+    'Due':                      'Scadenza',
+    'Done':                     'Fatta il',
+    'Priority':                 'Priorità',
+    'Source':                   'Origine',
+    'Icon':                     'Icona',
+    'Role':                     'Ruolo',
+    'Record':                   'Record',
+    'Table':                    'Tabella',
+    # The types the plugin registers
     'Note':                     'Nota',
     'Call':                     'Chiamata',
     'Meeting':                  'Appuntamento',
