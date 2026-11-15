@@ -6,6 +6,31 @@ tables:
 
 views:
 
+  # The mail sent in the history of its records: on by default for a message
+  # written by hand, off for a merge, where every record would get one. The
+  # param `activity` is what the bridge of activities reads (activities/mail.py)
+  smtp_compose_form:
+    source:
+      defaults: { activity: true }
+    layout:
+      - id: text
+        fields:
+          - &compose_activity
+            name: activity
+            label: Record in the history
+            type: Boolean
+            help: The message becomes a done activity of the record it was written on.
+
+  smtp_merge_form:
+    layout:
+      - id: text
+        fields:
+          - &merge_activity
+            name: activity
+            label: Record in the history
+            type: Boolean
+            help: Each message becomes a done activity of its record.
+
   # The history of the partner under the cursor, under the list: the form
   # stays whole, and the history scrolls on its own however long it grows
   partner_activities:
@@ -15,6 +40,22 @@ views:
       model: Partner
 
 pages:
+
+  # The partner's own compose and merge forms (demo_mail) write their layout
+  # out: the checkbox goes in there too
+  partner_compose:
+    content:
+      layout:
+        - id: text
+          fields:
+            - *compose_activity
+
+  partner_merge:
+    content:
+      layout:
+        - id: text
+          fields:
+            - *merge_activity
 
   partner_list:
     panels:

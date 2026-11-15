@@ -26,8 +26,9 @@ the server, so only server code passes one, and from the client (`trusted`
 False) a message carries only the files its user staged.
 
 The row is written before the server is contacted and updated with the
-outcome. A server that refuses or does not answer leaves the row `failed`,
-with the reason, and raises Unavailable. Under `$dry_run` the message is
+outcome; then the listeners of other plugins hear of it (api.on_sent). A
+server that refuses or does not answer leaves the row `failed`, with the
+reason, and raises Unavailable. Under `$dry_run` the message is
 written to a file instead of being sent (the row's `eml`); under
 `$redirect_to` it goes to that address alone, and the row keeps both the
 recipients written and the address delivered to.
@@ -50,7 +51,7 @@ from kitebase.apptime import now
 from kitebase.errors import Invalid, Unavailable
 from kitebase.i18n import _, _f
 
-from smtp import outbox
+from smtp import api, outbox
 from smtp.accounts import Account, SentFolder, account, choose, options
 from smtp.templates import complete
 
@@ -330,6 +331,10 @@ def dispatch(p: Prepared, log: bool = True) -> Dict[str, Any]:
     if log:
         _update(app, log_id, status=status, attachments=refs, message_id=msg['Message-ID'],
                 sent_at=now(), **({'error': copy_error} if copy_error else {}))
+    api.notify({'log_id': log_id, 'status': status, 'subject': parts['subject'],
+                'record': clean.get('record'), 'links': list(clean['links']),
+                'user_id': (kitebase.context.current() or {}).get('id'),
+                'params': dict(clean.get('params') or {})})
     return {'id': log_id, 'status': status, 'message_id': msg['Message-ID'],
             **({'warning': copy_error} if copy_error else {})}
 

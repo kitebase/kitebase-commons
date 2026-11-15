@@ -139,10 +139,38 @@ Three components, which the application places:
 - `activities.mine`, what the user has to do, as a page of `type: plugin`.
   What is written there is personal, on no record.
 - `activities.agenda`, what one user has to do, in a split area beside the
-  list of users, for whoever reads every activity: what is written there is for that
-  user.
+  list of users, for whoever reads every activity: what is written there is
+  for that user.
 
 All three write with the line on top (type, subject, due date: with none, the
 activity is recorded as done), mark done or postpone in place, and filter
 what is to do, done, or all: the timeline opens on all, the lists of a user
 on what is to do.
+
+## The mail sent
+
+Where the application loads smtp too, a message sent can become a done
+activity of type `email` (`mail.py`, loaded only then: `optional` in
+config.yaml). It is written on the record of the message, linked to its
+MailLog (role `mail`) and to the other records it reached, a recipient as the
+person spoken to (`contact`); with no record it is personal.
+
+The message asks for it with the param `activity`: absent, nothing is
+written, so the mail of the system and of code stays out of the history. The
+application gives the choice to whoever sends with a checkbox in its compose
+and merge forms, on by default for a message written by hand, off for a merge:
+
+```yaml
+views:
+  smtp_compose_form:
+    source:
+      defaults: { activity: true }
+    layout:
+      - id: text
+        fields:
+          - { name: activity, label: Record in the history, type: Boolean }
+```
+
+A code that sends and wants its message in the history passes
+`params={'activity': True}`.
+

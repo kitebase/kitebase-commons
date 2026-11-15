@@ -320,6 +320,26 @@ row is a message about that row: its address in To, its addresses in the
 dialog, the message in its mail sent. A print of several rows leaves To empty
 and links the message to every row.
 
+## Hearing of the mail sent
+
+Another plugin that wants to know when a message leaves registers a listener
+in `smtp/api.py`, from a module of its own listed under `optional: smtp`, so
+that neither plugin depends on the other:
+
+```python
+from smtp.api import on_sent
+
+@on_sent
+def remember(sent):
+    ...   # sent: log_id, status, subject, record, links, user_id, params
+```
+
+It is called once the message has left (sent, or written under the dry run),
+never when it failed. The message has already left: a listener that fails is
+written to the log, and the sending stays a success. What the form added to
+the message reaches it in `params`, which is how the activities ask to record
+a message in the history (`activities/mail.py`).
+
 ## Tests
 
     (cd commons/demo && uv run pytest -q ../plugins/smtp/tests)

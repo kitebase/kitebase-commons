@@ -302,6 +302,50 @@ def test_a_server_that_does_not_answer_leaves_a_failed_row(app, smtpd):
         assert row.status == 'failed' and row.error
 
 
+
+# ── Who hears of the mail sent ────────────────────────────────────────────────
+
+@pytest.fixture
+def listeners():
+    """Listeners registered for one test, then taken away."""
+    from smtp import api
+    saved = api._LISTENERS.snapshot()
+    yield api
+    api._LISTENERS.restore(saved)
+
+
+def test_the_listeners_hear_of_a_message_sent_and_a_failing_one_unsends_nothing(
+        app, smtpd, listeners):
+    heard = []
+
+    @listeners.on_sent
+    def broken(sent):
+        raise RuntimeError('a listener that fails')
+
+    @listeners.on_sent
+    def remember(sent):
+        heard.append(sent)
+
+    result = call(app, 'smtp_send', message=message(
+        record={'model': 'Invoice', 'id': 1033}, params={'activity': True}))
+    assert result['status_code'] == 200, result
+    sent = heard[0]
+    assert (sent['log_id'], sent['status'], sent['subject'], sent['user_id']) == \
+        (result['data']['id'], 'sent', 'Invoice 1033', 7)
+    assert sent['record'] == {'model': 'Invoice', 'id': 1033}
+    assert {'model': 'Invoice', 'id': 1033} in sent['links']
+    assert sent['params'] == {'activity': True}
+
+
+def test_a_message_that_failed_is_heard_by_nobody(app, smtpd, listeners):
+    heard = []
+    listeners.on_sent(heard.append)
+    data = yaml.safe_load((app.root / 'secrets' / 'smtp.yaml').read_text(encoding='utf-8'))
+    data['office']['port'] = free_port()
+    (app.root / 'secrets' / 'smtp.yaml').write_text(yaml.safe_dump(data, sort_keys=False), encoding='utf-8')
+    assert call(app, 'smtp_send', message=message())['status_code'] == 503
+    assert heard == []
+
 # ── Accounts ──────────────────────────────────────────────────────────────────
 
 def test_the_account_is_the_users_first_unless_one_of_theirs_is_asked(app, smtpd):

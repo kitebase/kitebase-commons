@@ -14,3 +14,6 @@ license: MIT
 author: "Claudio Driussi"
 url: https://claudiodriussi.it
 depends_on: [common, users]
+# The mail sent as activities, where the app sends mail too
+optional:
+  smtp: [mail]

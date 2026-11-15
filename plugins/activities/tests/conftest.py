@@ -1,6 +1,7 @@
 """The application the tests of activities run on, built once: the plugin with
 a bench of three tables in a chain (a job follows its deal, the deal its
-customer) and a table whose `follow` names no foreign key."""
+customer) and a table whose `follow` names no foreign key; smtp too, in dry
+run, for the bridge of the mail sent (activities/mail.py)."""
 import importlib.util
 import os
 import sys
@@ -46,8 +47,15 @@ def app(tmp_path_factory):
     (bench / 'model.yaml').write_text(yaml.safe_dump(BENCH_MODEL), encoding='utf-8')
     (root / 'config.yaml').write_text(yaml.safe_dump({
         'name': 'bench',
-        'plugins': [{'path': str(COMMONS), 'include': ['activities']}, 'plugins'],
+        'plugins': [{'path': str(COMMONS), 'include': ['activities', 'smtp']}, 'plugins'],
         'db_engine': f'sqlite:///{root / "bench.sqlite"}',
+        'media': {'roots': {'mail': {'type': 'fs', 'path': 'media/mail'}}},
+    }), encoding='utf-8')
+    (root / 'secrets').mkdir()
+    (root / 'secrets' / 'smtp.yaml').write_text(yaml.safe_dump({
+        '$dry_run': True,
+        'office': {'host': '127.0.0.1', 'port': 25, 'security': 'none',
+                   'from': 'Office <office@example.com>'},
     }), encoding='utf-8')
 
     cwd = os.getcwd()
@@ -74,8 +82,8 @@ def clean(app):
     """Each test: no activities, customer 1 with deal 10 and its job 100,
     customer 2 alone, users 7 and 8; no policy and nobody logged in."""
     with app.get_session() as s:
-        for name in ('ActivityLink', 'Activity', 'ActivityType', 'Note', 'Job', 'Deal',
-                     'Customer', 'User'):
+        for name in ('ActivityLink', 'Activity', 'ActivityType', 'MailLink', 'MailLog', 'Note',
+                     'Job', 'Deal', 'Customer', 'User'):
             s.query(app.models[name]).delete()
         s.add(app.models['ActivityType'](id='call', label='Call'))
         s.add(app.models['Customer'](id=1, name='Riverside'))
@@ -84,7 +92,8 @@ def clean(app):
         s.add(app.models['Job'](id=100, name='Measure', deal_id=10))
         for uid, name in ((7, 'Tester'), (8, 'Other')):
             s.add(app.models['User'](id=uid, username=name.lower(), name=name, password='x',
-                                     email=f'{name.lower()}@example.com'))
+                                     email=f'{name.lower()}@example.com',
+                                     mail_accounts=['office']))
         s.commit()
     yield
     access.GUARD.reset()
