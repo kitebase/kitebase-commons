@@ -31,7 +31,7 @@
 
 <div class="timeline">
   {#if model && id !== null && id !== undefined && id !== ''}
-    <Activities endpoint="activity_timeline" record={{ model, id }}
+    <Activities endpoint="activity_timeline" record={{ model, id }} refresh={trigger}
                 empty={_('No activities yet')} />
   {:else if recordId === undefined}
     <p class="note">{_('Pick a row to see its activities')}</p>

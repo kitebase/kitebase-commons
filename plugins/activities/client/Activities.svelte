@@ -106,13 +106,16 @@
     showUser?: boolean;
     /** Called after every change, with the activities still to do. */
     onchange?: (todo: number) => void;
+    /** Read again whenever it changes: the trigger of a split area, which a
+     *  list sends anew when the row under the cursor may have changed. */
+    refresh?: unknown;
   }
 
   type State = 'todo' | 'done' | 'all';
 
   let {
     endpoint, record = null, userId = null, empty, defaultType, defaultState = 'all',
-    showUser = true, onchange,
+    showUser = true, onchange, refresh,
   }: Props = $props();
 
   const stack = getContext<StackInstance>('kb:stack') ?? globalStack;
@@ -167,6 +170,7 @@
 
   $effect(() => {
     void params;
+    void refresh;
     loading = true;
     void load();
   });

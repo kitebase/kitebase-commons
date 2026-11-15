@@ -29,7 +29,7 @@
 <div class="agenda">
   {#if id !== null && id !== undefined && id !== ''}
     {#key id}
-      <Activities endpoint="activity_mine" userId={id} empty={_('Nothing to do')}
+      <Activities endpoint="activity_mine" userId={id} refresh={trigger} empty={_('Nothing to do')}
                   defaultType="todo" defaultState="todo" showUser={false} />
     {/key}
   {:else}
