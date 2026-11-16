@@ -7,6 +7,11 @@ pages:
   # Every opportunity, closed ones included: the list is where the closed are
   # found again. The same rows on the board, the stages of one pipeline at a
   # time; the closed leave it by a rule the user may take away.
+  #
+  # The two pages share their source through a YAML anchor: `&name` names a
+  # node, `*name` repeats it. The parser resolves it, inside one file only,
+  # and kitebase sees two equal sources. `$ref` is kitebase's own: it reaches
+  # across files and plugins, and the keys beside it win.
   opportunity_list:
     title: Opportunities
     content:
@@ -20,6 +25,17 @@ pages:
           - User: {type: left, "on": "Opportunity.user_id = User.id"}
         order_by: [Pipeline.sequence, Stage.sequence, name]
 
+    # The story of the row clicked, beside the list as beside the board
+    panels: &opportunity_panels
+      - id: activities
+        pos: right
+        width: 380
+        trigger: { event: row_click, pass: [id] }
+        type: plugin
+        component: activities.timeline
+        props:
+          model: Opportunity
+
   opportunity_board:
     title: Opportunity board
     content:
@@ -29,6 +45,7 @@ pages:
       source: *opportunity_source
       rules:
         - {field: outcome, op: eq, value: open}
+    panels: *opportunity_panels
 
   # The stage offered is one of the opportunity's pipeline (lookup.filters);
   # rules.py refuses the others on every port. The choices of `outcome` are
@@ -50,10 +67,15 @@ pages:
                   width: 60%
                 - name: partner_id
                   width: 40%
+                # Left empty, rules.py fills them: the first pipeline, its first stage
                 - name: pipeline_id
                   width: 30%
+                  required: false
+                  help: The kind of negotiation. Left empty, the first one.
                 - name: stage_id
                   width: 30%
+                  required: false
+                  help: Where the negotiation stands. Left empty, the first stage of its pipeline.
                   lookup:
                     filters: {pipeline_id: $record.pipeline_id}
                 - name: user_id
@@ -93,6 +115,17 @@ pages:
                 - filler:
                 - name: lost_note
                   widget: textarea
+        # Its activities in the form: they are linked to it, not owned, so
+        # they are in the history of the partner too. In a tabs even alone,
+        # the hook another plugin needs to put a sibling beside it.
+        - id: relations
+          type: tabs
+          pages:
+            - id: activities_tab
+              label: Activities
+              layout:
+                - type: plugin
+                  component: activities.timeline
 
   # A pipeline and its stages, in the order the board shows them: moved by
   # hand, numbered on save.
@@ -164,9 +197,98 @@ views:
       - field: outcome
         title: Outcome
         width: 100
+      - field: next_activity
+        title: Next activity
+      - field: next_due
+        title: Next date
+        width: 110
+      # Read by the card's ribbon: green, orange today, red overdue
+      - field: next_state
+        title: Next step
+        visible: false
+        tone:
+          values: { planned: success, today: warning, overdue: danger }
     card:
       title: name
       subtitle: partner
-      details: [amount, expected_date, salesperson]
+      ribbon: next_state
+      details: [amount, salesperson, next_activity, next_due]
     kanban:
       sum: amount
+    # Closing is a deliberate act, never a drag: the stage stays where it
+    # closed. Lost asks why, from the lost reasons (endpoints.py).
+    navigator:
+      commands:
+        - id: won
+          label: Won
+          icon: trophy
+          toolbar: true
+          scope: row
+          key: w
+          endpoint: crm_close
+          params: { outcome: won }
+        - id: lost
+          label: Lost
+          icon: thumbs-down
+          toolbar: true
+          scope: row
+          key: l
+          endpoint: crm_close
+          params: { outcome: lost }
+        - id: plan
+          label: Plan an activity
+          icon: calendar-plus
+          toolbar: true
+          scope: row
+          key: p
+          endpoint: crm_plan
+        - id: reopen
+          label: Open again
+          scope: row
+          endpoint: crm_close
+          params: { outcome: open }
+        - id: salesperson
+          label: Hand to another salesperson
+          icon: user-round
+          scope: global
+          endpoint: crm_salesperson
+        # With smtp only (mail.py): without it the endpoints are not there,
+        # and the view leaves the commands out
+        - id: write_email
+          label: Write an email
+          icon: mail
+          scope: row
+          key: e
+          endpoint: smtp_compose
+        - id: sent_email
+          label: Email sent
+          scope: row
+          endpoint: smtp_sent_page
+
+  # The next step of a negotiation, in a dialog from the board or the list
+  # (endpoints.py fills the types and the first values).
+  crm_plan_form:
+    type: form
+    presentation: dialog
+    source: {}
+    layout:
+      - type: section
+        id: plan
+        fields:
+          - name: type
+            label: Type
+            type: String
+            required: true
+          - name: subject
+            label: Subject
+            type: String
+            required: true
+          - name: due_date
+            label: Due
+            type: Date
+            required: true
+          - name: note
+            label: Note
+            type: Text
+            widget: textarea
+

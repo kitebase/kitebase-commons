@@ -56,7 +56,8 @@ tables:
 
       - name: user_id
         label: "Salesperson"
-        help: "Who follows it."
+        help: "Who follows it: whoever writes it, unless someone else is named."
+        default: $user_id
         foreign_key:
           target: User.id
           relation: user
@@ -117,6 +118,32 @@ tables:
       - name: description
         type: Text
         label: "Description"
+
+      # The next thing to do, computed in the query (model.py)
+      - name: next_activity
+        type: String
+        virtual: true
+        editable: false
+        label: "Next activity"
+        help: "The first activity still to do, by its date."
+
+      - name: next_due
+        type: Date
+        virtual: true
+        editable: false
+        label: "Next date"
+
+      - name: next_state
+        type: ShortStr
+        virtual: true
+        editable: false
+        label: "Next step"
+        help: "How the next activity stands against today: overdue, today, planned, or nothing planned."
+        choices:
+          - { value: overdue, label: Overdue }
+          - { value: today, label: Today }
+          - { value: planned, label: Planned }
+          - { value: none, label: Nothing planned }
 
     indexes:
       - name: idx_opportunity_board

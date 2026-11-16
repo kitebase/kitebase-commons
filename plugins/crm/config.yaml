@@ -11,3 +11,6 @@ license: MIT
 author: "Claudio Driussi"
 url: https://claudiodriussi.it
 depends_on: [common, users, partners, activities]
+# Email on an opportunity, to its partner, where the app loads smtp (mail.py)
+optional:
+  smtp: [mail]

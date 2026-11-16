@@ -46,12 +46,16 @@ def app(tmp_path_factory):
 
 @pytest.fixture(autouse=True)
 def clean(app):
-    """Each test: partner 1, no pipeline, no opportunity; no policy and nobody
-    logged in."""
+    """Each test: partner 1, users 7 and 8, no pipeline, no opportunity, no
+    activity; no policy and nobody logged in."""
     with app.get_session() as s:
-        for name in ('Opportunity', 'Stage', 'Pipeline', 'LostReason', 'Partner'):
+        for name in ('ActivityLink', 'Activity', 'ActivityType', 'Opportunity', 'Stage',
+                     'Pipeline', 'LostReason', 'Partner', 'User'):
             s.query(app.models[name]).delete()
         s.add(app.models['Partner'](id=1, kind='organization', name='Riverside'))
+        for uid, name in ((7, 'Tester'), (8, 'Other')):
+            s.add(app.models['User'](id=uid, username=name.lower(), name=name, password='x',
+                                     email=f'{name.lower()}@example.com'))
         s.commit()
     yield
     access.GUARD.reset()
