@@ -127,13 +127,15 @@
     refresh?: unknown;
     /** Commands on the rows, from the page that shows the list. */
     commands?: RowCommand[];
+    /** Told `changed` after every write: the page reads again what is beside it. */
+    onEvent?: (name: string, data: unknown) => void;
   }
 
   type State = 'todo' | 'done' | 'all';
 
   let {
     endpoint, record = null, userId = null, empty, defaultType, defaultState = 'all',
-    showUser = true, onchange, refresh, commands = [],
+    showUser = true, onchange, refresh, commands = [], onEvent,
   }: Props = $props();
 
   const stack = getContext<StackInstance>('kb:stack') ?? globalStack;
@@ -205,6 +207,7 @@
     }
     error = null;
     await load();
+    onEvent?.('changed', {});
     return true;
   }
 
@@ -234,14 +237,16 @@
   function open(item: Item) {
     stack.push(DataFormView, {
       formId: 'activity_form', recordId: item.id, title: _('Activity'),
-      onSaved: () => void load(), onCancel: () => void load(),
+      onSaved: () => { void load(); onEvent?.('changed', {}); }, onCancel: () => void load(),
     });
   }
 
   async function run(command: RowCommand, item: Item) {
     const res = await api.endpoint(command.endpoint, { id: item.id });
-    await applyResult(res, { title: _(command.label), stack, reload: () => void load() });
+    await applyResult(res, { title: _(command.label), stack,
+                             reload: () => { void load(); onEvent?.('changed', {}); } });
     await load();
+    onEvent?.('changed', {});
   }
 
   async function remove(item: Item) {

@@ -24,9 +24,11 @@
     trigger?: Record<string, unknown>;
     /** Commands on the rows, declared by the page (`props.commands`). */
     commands?: RowCommand[];
+    /** The page's: told `changed` when the history wrote something. */
+    onEvent?: (name: string, data: unknown) => void;
   }
 
-  let { model, recordId, trigger, commands = [] }: Props = $props();
+  let { model, recordId, trigger, commands = [], onEvent }: Props = $props();
 
   const id = $derived(recordId ?? (trigger?.id as string | number | null | undefined));
 </script>
@@ -34,7 +36,7 @@
 <div class="timeline">
   {#if model && id !== null && id !== undefined && id !== ''}
     <Activities endpoint="activity_timeline" record={{ model, id }} refresh={trigger}
-                {commands} empty={_('No activities yet')} />
+                {commands} {onEvent} empty={_('No activities yet')} />
   {:else if recordId === undefined}
     <p class="note">{_('Pick a row to see its activities')}</p>
   {:else}
