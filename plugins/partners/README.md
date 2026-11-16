@@ -29,6 +29,30 @@ customer_list:
 role, so without a registry view there is nowhere to find an existing subject
 and give it a second role — and people duplicate instead.
 
+**Take the list view, `partner_table`** (`panels.yaml`): its columns and its
+commands (archive, roles, print where reports is loaded). Each list of the
+application refers to it and writes its own `source`, since the merge is
+shallow:
+
+```yaml
+customer_list:
+  title: Customers
+  content:
+    $ref: views.partner_table
+    source:
+      model: Partner
+      domain: [{roles: [has, C]}]
+      defaults: {roles: [C]}
+```
+
+The view is a contract of this plugin: other plugins add their commands to it,
+merged by `id` (crm adds "New opportunity" and "Contact for a campaign", an
+application's mail adds its own), and every list that refers to it gets them.
+An application changes it by merging into it: a column more or less, a
+command taken away (`{id: campaign_contact, $remove: true}`), or its own
+columns from scratch with `$replace: [columns]`, which keeps the commands. A
+list that refers to a view of its own gets none of them.
+
 **Add role-specific columns from the plugin that needs them**, through
 deep_merge:
 

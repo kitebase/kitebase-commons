@@ -167,6 +167,33 @@ activity is recorded as done), mark done or postpone in place, and filter
 what is to do, done, or all: the timeline opens on all, the lists of a user
 on what is to do.
 
+**Commands on the rows.** The page that shows a history may add commands to
+its rows, in the area's `props`: a button on each row, which calls its
+endpoint with the activity's `id`; the answer is applied as any command's
+(open a form, a menu, a message). `todo: true` shows it only on what is still
+to do. A command belongs where it makes sense: an opportunity is created from
+the contacts of a campaign (the crm plugin), not from a mail sent.
+
+```yaml
+campaign_list:
+  panels:
+    - id: activities
+      pos: bottom
+      trigger: { event: row_click, pass: [id] }
+      type: plugin
+      component: activities.timeline
+      props:
+        model: Campaign
+        commands:
+          - { id: opportunity, label: Create opportunity,
+              endpoint: crm_opportunity_from_activity, todo: true }
+```
+
+**The list beside it follows.** After every write (a new activity, one done,
+postponed or deleted, a command, a save from its form) the history tells the
+page `changed`, and the list it stands beside reads its row again: the figures
+of a campaign drop as its contacts are handled, without reloading.
+
 ## The mail sent
 
 Where the application loads smtp too, a message sent can become a done
