@@ -1,0 +1,157 @@
+# Translations of the guide, kept in step with the English by `kitebase sync-help`.
+# Translate the value under the language; an empty one shows the English.
+# `en_old` is the English the translation was made on: review it, then remove the line.
+
+tables.Opportunity:
+  en: |-
+    A real negotiation: someone showed interest. It moves through the stages
+    of its pipeline and ends won or lost; the stage stays the one where it
+    closed, so the lost ones say where they were lost.
+  it: |-
+    Una trattativa vera: qualcuno ha mostrato interesse. Passa per le fasi
+    della sua pipeline e finisce vinta o persa; la fase resta quella in cui si è
+    chiusa, così le perse dicono dove si sono perse.
+
+tables.Opportunity.columns.pipeline_id:
+  en: The kind of negotiation, whose stages it moves through.
+  it: Il tipo di trattativa, di cui attraversa le fasi.
+
+tables.Opportunity.columns.stage_id:
+  en: Where the negotiation stands; once closed, where it closed.
+  it: A che punto è la trattativa; una volta chiusa, dove si è chiusa.
+
+tables.Opportunity.columns.user_id:
+  en: 'Who follows it: whoever writes it, unless someone else is named.'
+  it: 'Chi la segue: chi la scrive, se non si indica un altro.'
+
+tables.Opportunity.columns.priority:
+  en: From 0 to 3 stars.
+  it: Da 0 a 3 stelle.
+
+tables.Opportunity.columns.closed_at:
+  en: Set when it is won or lost, emptied when it is opened again.
+  it: Si compila quando è vinta o persa, si svuota quando si riapre.
+
+tables.Opportunity.columns.campaign_id:
+  en: Where it came from, when a campaign brought it.
+  it: 'Da dove è arrivata, quando l''ha portata una campagna.'
+
+tables.Opportunity.columns.next_activity:
+  en: The first activity still to do, by its date.
+  it: La prima attività ancora da fare, per data.
+
+tables.Opportunity.columns.next_state:
+  en: 'How the next activity stands against today: overdue, today, planned, or nothing planned.'
+  it: 'Come sta la prossima attività rispetto a oggi: scaduta, oggi, in programma, o niente in programma.'
+
+tables.Pipeline:
+  en: |-
+    A kind of negotiation, with the stages it goes through: new customers,
+    renewals, large jobs. Most need only one.
+  it: |-
+    Un tipo di trattativa, con le fasi che attraversa: nuovi clienti,
+    rinnovi, grandi commesse. A quasi tutti ne basta una.
+
+tables.Pipeline.columns.sequence:
+  en: Display order; the first is the one a new opportunity goes to.
+  it: 'L''ordine in cui si mostrano; la prima è quella in cui va una nuova opportunità.'
+
+tables.Stage:
+  en: |-
+    A step of a pipeline. An opportunity passes from any stage to any other:
+    the order is how the board shows them, not a path to follow.
+  it: |-
+    Un passo di una pipeline. Un'opportunità passa da una fase qualsiasi a
+    un'altra: l'ordine è come le mostra la bacheca, non un percorso da seguire.
+
+tables.Stage.columns.folded:
+  en: The column starts folded on the board.
+  it: La colonna parte chiusa sulla bacheca.
+
+tables.LostReason:
+  en: Why negotiations are lost, counted in the figures.
+  it: Perché si perdono le trattative, contato nei numeri.
+
+tables.Campaign:
+  en: |-
+    An initiative that brings opportunities: a new product presented, a fair,
+    a mailing. Its members are the partners with an activity linked to it.
+  it: |-
+    Un'iniziativa che porta opportunità: un prodotto nuovo presentato, una
+    fiera, un invio. I suoi membri sono i partner con un'attività collegata.
+
+tables.Campaign.columns.contacted:
+  en: The partners its activities reached.
+  it: I partner raggiunti dalle sue attività.
+
+tables.Campaign.columns.to_handle:
+  en: The contacts still to do.
+  it: I contatti ancora da fare.
+
+pages.opportunity_list:
+  en: Every negotiation, the closed ones too. Click a row to see its story on the right; switch to the board to work stage by stage.
+  it: Tutte le trattative, anche le chiuse. Clicca una riga per vederne la storia a destra; passa alla bacheca per lavorare fase per fase.
+
+pages.campaign_list:
+  en: Each campaign with what it brought. Click one to see the opportunities it is the origin of, and below its contacts, to follow up one by one.
+  it: Ogni campagna con ciò che ha reso. Cliccane una per vedere le opportunità nate da lei, e sotto i suoi contatti, da seguire uno per uno.
+
+pages.opportunity_board:
+  en: Your open negotiations, one column per stage. Drag a card to move it, click it to see its story, double-click to open it.
+  it: Le tue trattative aperte, una colonna per fase. Trascina una scheda per spostarla, cliccala per vederne la storia, doppio clic per aprirla.
+
+pages.opportunity_form:
+  en: A negotiation with a partner. Its activities are at the bottom; won and lost are commands of the list and the board.
+  it: Una trattativa con un partner. Le sue attività sono in fondo; vinta e persa sono comandi della lista e della bacheca.
+
+pages.opportunity_form.content.layout.deal.columns.main.fields.pipeline_id:
+  en: The kind of negotiation. Left empty, the first one.
+  it: Il tipo di trattativa. Se lo lasci vuoto, il primo.
+
+pages.opportunity_form.content.layout.deal.columns.main.fields.stage_id:
+  en: Where the negotiation stands. Left empty, the first stage of its pipeline.
+  it: A che punto è la trattativa. Se la lasci vuota, la prima fase della sua pipeline.
+
+pages.pipeline_form:
+  en: A kind of negotiation and its stages, in the order the board shows them. Move a stage with the handle to change its place.
+  it: 'Un tipo di trattativa e le sue fasi, nell''ordine in cui le mostra la bacheca. Sposta una fase con la maniglia per cambiarne il posto.'
+
+views.opportunity_table.navigator.commands.won:
+  en: Closes the negotiation as won. It stays in the stage it reached.
+  it: Chiude la trattativa come vinta. Resta nella fase che aveva raggiunto.
+
+views.opportunity_table.navigator.commands.lost:
+  en: Closes the negotiation as lost, asking why. It stays in the stage where it was lost, so the figures show where negotiations stop.
+  it: Chiude la trattativa come persa, chiedendo il motivo. Resta nella fase in cui si è persa, così i numeri mostrano dove si fermano le trattative.
+
+views.opportunity_table.navigator.commands.plan:
+  en: 'Plans the next thing to do on this negotiation: a call, a meeting, a reminder. The card shows it until it is done.'
+  it: 'Pianifica la prossima cosa da fare su questa trattativa: una telefonata, un appuntamento, un promemoria. La scheda la mostra finché non è fatta.'
+
+views.opportunity_table.navigator.commands.reopen:
+  en: Opens a closed negotiation again.
+  it: Riapre una trattativa chiusa.
+
+views.opportunity_table.navigator.commands.salesperson:
+  en: 'Gives the ticked negotiations, or the one under the cursor, to another salesperson: when someone is away or leaves.'
+  it: 'Passa le trattative spuntate, o quella sotto il cursore, a un altro commerciale: quando qualcuno è assente o se ne va.'
+
+views.opportunity_table.navigator.commands.write_email:
+  en: Writes an email to the partner of this negotiation. Once sent, it is in the story of the negotiation.
+  it: 'Scrive un''email al partner di questa trattativa. Una volta inviata, è nella storia della trattativa.'
+
+views.opportunity_table.navigator.commands.sent_email:
+  en: The messages sent about this negotiation.
+  it: I messaggi inviati per questa trattativa.
+
+views.crm_campaign_form.layout.contact.fields.due_date:
+  en: With a date the contact is to do, and stays open until it has its outcome. Empty, it is recorded as done now.
+  it: Con una data il contatto è da fare, e resta aperto finché non ha il suo esito. Vuota, è registrato come fatto adesso.
+
+views.partner_table.navigator.commands.new_opportunity:
+  en: Opens a new opportunity for this partner.
+  it: Apre una nuova opportunità per questo partner.
+
+views.partner_table.navigator.commands.campaign_contact:
+  en: Records a contact for a campaign with each ticked partner, or with the one under the cursor.
+  it: Registra un contatto per una campagna con ogni partner spuntato, o con quello sotto il cursore.

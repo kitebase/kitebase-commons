@@ -14,6 +14,7 @@ pages:
   # across files and plugins, and the keys beside it win.
   opportunity_list:
     title: Opportunities
+    help: Every negotiation, the closed ones too. Click a row to see its story on the right; switch to the board to work stage by stage.
     content:
       $ref: views.opportunity_table
       source: &opportunity_source
@@ -40,6 +41,7 @@ pages:
   # opportunities it is the origin of beside it, its activities below.
   campaign_list:
     title: Campaigns
+    help: Each campaign with what it brought. Click one to see the opportunities it is the origin of, and below its contacts, to follow up one by one.
     content:
       type: table
       source:
@@ -64,8 +66,8 @@ pages:
           title: Opportunities
           width: 120
         - field: won_count
-          title: Won
-          width: 90
+          title: Won opportunities
+          width: 150
         - field: won_amount
           title: Won value
           width: 130
@@ -93,6 +95,7 @@ pages:
 
   opportunity_board:
     title: Opportunity board
+    help: Your open negotiations, one column per stage. Drag a card to move it, click it to see its story, double-click to open it.
     content:
       $ref: views.opportunity_table
       type: kanban
@@ -111,6 +114,7 @@ pages:
   # the column's, in the model.
   opportunity_form:
     title: Opportunity
+    help: A negotiation with a partner. Its activities are at the bottom; won and lost are commands of the list and the board.
     content:
       type: form
       source:
@@ -190,6 +194,7 @@ pages:
   # hand, numbered on save.
   pipeline_form:
     title: Pipeline
+    help: A kind of negotiation and its stages, in the order the board shows them. Move a stage with the handle to change its place.
     content:
       type: form
       source:
@@ -280,6 +285,7 @@ views:
       commands:
         - id: won
           label: Won
+          help: Closes the negotiation as won. It stays in the stage it reached.
           icon: trophy
           toolbar: true
           scope: row
@@ -288,6 +294,7 @@ views:
           params: { outcome: won }
         - id: lost
           label: Lost
+          help: Closes the negotiation as lost, asking why. It stays in the stage where it was lost, so the figures show where negotiations stop.
           icon: thumbs-down
           toolbar: true
           scope: row
@@ -296,6 +303,7 @@ views:
           params: { outcome: lost }
         - id: plan
           label: Plan an activity
+          help: 'Plans the next thing to do on this negotiation: a call, a meeting, a reminder. The card shows it until it is done.'
           icon: calendar-plus
           toolbar: true
           scope: row
@@ -303,11 +311,13 @@ views:
           endpoint: crm_plan
         - id: reopen
           label: Open again
+          help: Opens a closed negotiation again.
           scope: row
           endpoint: crm_close
           params: { outcome: open }
         - id: salesperson
           label: Hand to another salesperson
+          help: 'Gives the ticked negotiations, or the one under the cursor, to another salesperson: when someone is away or leaves.'
           icon: user-round
           scope: global
           endpoint: crm_salesperson
@@ -315,12 +325,14 @@ views:
         # and the view leaves the commands out
         - id: write_email
           label: Write an email
+          help: Writes an email to the partner of this negotiation. Once sent, it is in the story of the negotiation.
           icon: mail
           scope: row
           key: e
           endpoint: smtp_compose
         - id: sent_email
           label: Email sent
+          help: The messages sent about this negotiation.
           scope: row
           endpoint: smtp_sent_page
 

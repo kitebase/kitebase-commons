@@ -285,7 +285,7 @@ tables:
         type: Integer
         virtual: true
         editable: false
-        label: "Won"
+        label: "Won opportunities"
 
       - name: won_amount
         type: Money

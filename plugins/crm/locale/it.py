@@ -67,10 +67,7 @@ register_translations('it', {
     'Left as they were: {names}': 'Rimaste com\'erano: {names}',
     # From the partners, and the campaigns
     'New opportunity':          'Nuova opportunità',
-    'Opens a new opportunity for this partner.': 'Apre una nuova opportunità per questo partner.',
     'Contact for a campaign':   'Contatta per una campagna',
-    'Records a contact for a campaign with each ticked partner, or with the one under the cursor.':
-        'Registra un contatto per una campagna con ogni partner spuntato, o con quello sotto il cursore.',
     'Contact {n} partners for a campaign': 'Contatta {n} partner per una campagna',
     'There is no active campaign yet: create one first': 'Non c\'è ancora una campagna attiva: creane una',
     'A campaign, a type and a subject are needed': 'Servono una campagna, un tipo e un oggetto',
@@ -78,22 +75,18 @@ register_translations('it', {
     'One partner contacted':    'Un partner contattato',
     '{n} not readable, left out': '{n} non leggibili, esclusi',
     'Select a partner first':   'Scegli prima un partner',
-    'With a date the contact is to do, and stays open until it has its outcome. Empty, it is recorded as done now.':
-        'Con una data il contatto è da fare, e resta aperto finché non ha il suo esito. Vuota, è registrato come fatto adesso.',
     # An opportunity from an activity
     'Create opportunity':       'Crea opportunità',
-    'The contact went well. Creates an opportunity with the partner and the campaign of this activity, marks the activity done, and opens the opportunity to complete it.':
-        'Il contatto è andato bene. Crea un\'opportunità col partner e la campagna di questa attività, segna fatta l\'attività e apre l\'opportunità da completare.',
     'Save the activity first':  'Salva prima l\'attività',
     'This activity already belongs to an opportunity': 'Questa attività appartiene già a un\'opportunità',
     'This activity concerns no partner: an opportunity needs one':
         'Questa attività non riguarda un partner: un\'opportunità ne ha bisogno',
     'To handle':                'Da gestire',
-    'The contacts still to do.': 'I contatti ancora da fare.',
     'Campaigns':                'Campagne',
     'Contacted':                'Contattati',
     'Won value':                'Valore vinto',
-    'The partners its activities reached.': 'I partner raggiunti dalle sue attività.',
+    'Won opportunities':        'Opportunità vinte',
+    'Open again':               'Riapri',
     # Email, with smtp
     'Write an email':           'Scrivi un\'email',
     'Email sent':               'Email inviate',
