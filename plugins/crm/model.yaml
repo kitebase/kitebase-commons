@@ -1,0 +1,234 @@
+# Opportunities, the pipelines they move through, and where they come from.
+
+tables:
+
+  Opportunity:
+    name: opportunities
+    label: "Opportunity"
+    help: |
+      A real negotiation: someone showed interest. It moves through the stages
+      of its pipeline and ends won or lost; the stage stays the one where it
+      closed, so the lost ones say where they were lost.
+    tags: [document]
+    mixins: [TimeStamp]
+    # An activity on the opportunity is in the history of its partner too
+    activities.follow: [partner_id]
+    # The board: the stages of one pipeline at a time, in their order
+    state:
+      column: stage_id
+      within: pipeline_id
+      order: sequence
+      folded: folded
+    columns:
+      - name: id
+        type: ID
+
+      - name: name
+        type: Description
+        nullable: False
+        label: "Opportunity"
+
+      - name: partner_id
+        label: "Partner"
+        nullable: False
+        foreign_key:
+          target: Partner.id
+          relation: partner
+          backref: opportunities
+
+      - name: pipeline_id
+        label: "Pipeline"
+        help: "The kind of negotiation, whose stages it moves through."
+        nullable: False
+        foreign_key:
+          target: Pipeline.id
+          relation: pipeline
+          backref: opportunities
+
+      - name: stage_id
+        label: "Stage"
+        help: "Where the negotiation stands; once closed, where it closed."
+        nullable: False
+        foreign_key:
+          target: Stage.id
+          relation: stage
+          backref: opportunities
+
+      - name: user_id
+        label: "Salesperson"
+        help: "Who follows it."
+        foreign_key:
+          target: User.id
+          relation: user
+          backref: opportunities
+
+      - name: amount
+        type: Money
+        label: "Expected amount"
+
+      - name: expected_date
+        type: Date
+        label: "Expected closing"
+
+      - name: priority
+        type: Integer
+        default: 0
+        nullable: False
+        label: "Priority"
+        help: "From 0 to 3 stars."
+
+      # A closed set owned by the code: what is computed on it (the board shows
+      # the open ones, the figures count the won) is the plugin's.
+      - name: outcome
+        type: ShortStr
+        default: "'open'"
+        nullable: False
+        label: "Outcome"
+        choices:
+          - { value: open, label: Open }
+          - { value: won, label: Won }
+          - { value: lost, label: Lost }
+
+      - name: closed_at
+        type: Date
+        label: "Closed on"
+        help: "Set when it is won or lost, emptied when it is opened again."
+        editable: false
+
+      - name: lost_reason_id
+        label: "Lost reason"
+        foreign_key:
+          target: LostReason.id
+          relation: lost_reason
+          backref: opportunities
+
+      - name: lost_note
+        type: Text
+        label: "Why it was lost"
+
+      - name: campaign_id
+        label: "Campaign"
+        help: "Where it came from, when a campaign brought it."
+        foreign_key:
+          target: Campaign.id
+          relation: campaign
+          backref: opportunities
+
+      - name: description
+        type: Text
+        label: "Description"
+
+    indexes:
+      - name: idx_opportunity_board
+        columns: [pipeline_id, outcome, stage_id]
+        description: "The board of a pipeline: the open ones, stage by stage"
+
+  Pipeline:
+    name: crm_pipelines
+    label: "Pipeline"
+    help: |
+      A kind of negotiation, with the stages it goes through: new customers,
+      renewals, large jobs. Most need only one.
+    tags: [reference]
+    mixins: [Archivable]
+    columns:
+      - name: id
+        type: ID
+
+      - name: name
+        type: Description
+        nullable: False
+        label: "Name"
+
+      - name: sequence
+        type: Integer
+        default: 0
+        nullable: False
+        label: "Sequence"
+        help: "Display order; the first is the one a new opportunity goes to."
+
+  Stage:
+    name: crm_stages
+    label: "Stage"
+    help: |
+      A step of a pipeline. An opportunity passes from any stage to any other:
+      the order is how the board shows them, not a path to follow.
+    tags: [reference]
+    columns:
+      - name: id
+        type: ID
+
+      - name: pipeline_id
+        label: "Pipeline"
+        nullable: False
+        foreign_key:
+          target: Pipeline.id
+          owned: true
+          relation: pipeline
+          backref: stages
+
+      - name: name
+        type: Description
+        nullable: False
+        label: "Name"
+
+      - name: sequence
+        type: Sequence
+        doc: The place of the stage in its pipeline, the board's columns from left to right.
+
+      - name: folded
+        type: Boolean
+        default: false
+        nullable: False
+        label: "Folded"
+        help: "The column starts folded on the board."
+
+  LostReason:
+    name: crm_lost_reasons
+    label: "Lost reason"
+    help: Why negotiations are lost, counted in the figures.
+    tags: [reference]
+    mixins: [Archivable]
+    columns:
+      - name: id
+        type: ID
+
+      - name: name
+        type: Description
+        nullable: False
+        label: "Reason"
+
+      - name: sequence
+        type: Integer
+        default: 0
+        nullable: False
+        label: "Sequence"
+
+  Campaign:
+    name: crm_campaigns
+    label: "Campaign"
+    help: |
+      An initiative that brings opportunities: a new product presented, a fair,
+      a mailing. Its members are the partners with an activity linked to it.
+    tags: [master]
+    mixins: [Archivable]
+    columns:
+      - name: id
+        type: ID
+
+      - name: name
+        type: Description
+        nullable: False
+        label: "Name"
+
+      - name: start_date
+        type: Date
+        label: "From"
+
+      - name: end_date
+        type: Date
+        label: "To"
+
+      - name: description
+        type: Text
+        label: "Description"

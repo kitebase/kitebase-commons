@@ -1,0 +1,172 @@
+# The forms of the CRM. Menu-silent like the rest of the commons: where the
+# lists surface is the application's call. Lowercase `{model}_form`, so each is
+# the form its lists open.
+
+pages:
+
+  # Every opportunity, closed ones included: the list is where the closed are
+  # found again. The same rows on the board, the stages of one pipeline at a
+  # time; the closed leave it by a rule the user may take away.
+  opportunity_list:
+    title: Opportunities
+    content:
+      $ref: views.opportunity_table
+      source: &opportunity_source
+        model: Opportunity
+        joins:
+          - Partner: {type: left, "on": "Opportunity.partner_id = Partner.id"}
+          - Pipeline: {type: left, "on": "Opportunity.pipeline_id = Pipeline.id"}
+          - Stage: {type: left, "on": "Opportunity.stage_id = Stage.id"}
+          - User: {type: left, "on": "Opportunity.user_id = User.id"}
+        order_by: [Pipeline.sequence, Stage.sequence, name]
+
+  opportunity_board:
+    title: Opportunity board
+    content:
+      $ref: views.opportunity_table
+      type: kanban
+      allow_views: [kanban, table]
+      source: *opportunity_source
+      rules:
+        - {field: outcome, op: eq, value: open}
+
+  # The stage offered is one of the opportunity's pipeline (lookup.filters);
+  # rules.py refuses the others on every port. The choices of `outcome` are
+  # the column's, in the model.
+  opportunity_form:
+    title: Opportunity
+    content:
+      type: form
+      source:
+        model: Opportunity
+        id: $props.id
+      layout:
+        - id: deal
+          type: section
+          columns:
+            - id: main
+              fields:
+                - name: name
+                  width: 60%
+                - name: partner_id
+                  width: 40%
+                - name: pipeline_id
+                  width: 30%
+                - name: stage_id
+                  width: 30%
+                  lookup:
+                    filters: {pipeline_id: $record.pipeline_id}
+                - name: user_id
+                  width: 40%
+                - name: amount
+                  width: 25%
+                - name: expected_date
+                  width: 25%
+                - name: priority
+                  widget: combobox
+                  choices:
+                    - { value: 0, label: Normal }
+                    - { value: 1, label: "*" }
+                    - { value: 2, label: "**" }
+                    - { value: 3, label: "***" }
+                  width: 20%
+                - name: campaign_id
+                  width: 30%
+        - id: text
+          type: section
+          columns:
+            - id: main
+              fields:
+                - name: description
+                  widget: textarea
+        - id: closing
+          type: section
+          columns:
+            - id: main
+              fields:
+                - name: outcome
+                  width: 20%
+                - name: closed_at
+                  width: 20%
+                - name: lost_reason_id
+                  width: 60%
+                - filler:
+                - name: lost_note
+                  widget: textarea
+
+  # A pipeline and its stages, in the order the board shows them: moved by
+  # hand, numbered on save.
+  pipeline_form:
+    title: Pipeline
+    content:
+      type: form
+      source:
+        model: Pipeline
+        id: $props.id
+      layout:
+        - id: header
+          type: section
+          columns:
+            - id: main
+              fields:
+                - name: name
+                  width: 70%
+                - name: sequence
+                  width: 15%
+                - name: active
+                  width: 15%
+        - id: relations
+          type: tabs
+          pages:
+            - id: stages_tab
+              label: Stages
+              count: stages
+              layout:
+                - type: collection
+                  id: stages
+                  model: Stage
+                  fk: pipeline_id
+                  sequence: sequence
+                  view:
+                    type: table
+                    columns:
+                      - field: name
+                        title: Stage
+                        width: 320
+                      - field: folded
+                        title: Folded
+
+views:
+
+  opportunity_table:
+    type: table
+    allow_views: [table, kanban]
+    columns:
+      - field: name
+        title: Opportunity
+      - field: Partner.name as partner
+        title: Partner
+      - field: Pipeline.name as pipeline
+        title: Pipeline
+        width: 130
+      - field: Stage.name as stage
+        title: Stage
+        width: 130
+      - field: amount
+        title: Expected amount
+        width: 130
+      - field: expected_date
+        title: Expected closing
+        width: 130
+      - field: User.name as salesperson
+        title: Salesperson
+        width: 140
+      - field: outcome
+        title: Outcome
+        width: 100
+    card:
+      title: name
+      subtitle: partner
+      details: [amount, expected_date, salesperson]
+    kanban:
+      sum: amount

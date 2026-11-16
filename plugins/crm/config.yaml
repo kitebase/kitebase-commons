@@ -1,0 +1,13 @@
+# A light CRM: opportunities moving through the stages of a pipeline, won or
+# lost, with the activities that tell their story. One pipeline is enough for
+# most: api.make_pipeline writes a standard one where there is none. A second
+# pipeline (renewals beside new customers) is a row, with stages of its own.
+#
+# See README.md.
+name: crm
+version: 0.0.1
+description: Opportunities through the stages of a pipeline, won or lost
+license: MIT
+author: "Claudio Driussi"
+url: https://claudiodriussi.it
+depends_on: [common, users, partners, activities]

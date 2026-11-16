@@ -84,7 +84,46 @@ def seed(app, model):
                 model.Partner(kind="person", name="Doe, Jane", city="York"),
             ])
 
+        session.flush()
+        seed_crm(session, model)
         session.commit()
+
+
+def seed_crm(session, model):
+    """The standard pipeline the plugin writes, a second one beside it (the
+    renewals of the contracts, with stages of their own), the reasons a
+    negotiation is lost, and a few opportunities to look at."""
+    from crm.api import make_pipeline  # type: ignore
+
+    if session.query(model.Pipeline).first():
+        return
+    sales = make_pipeline(session)
+    renewals = make_pipeline(session, "Renewals",
+                             ["Expiring", "Proposal sent", "Signed"])
+    session.add_all([
+        model.LostReason(name="Price", sequence=10),
+        model.LostReason(name="Went to a competitor", sequence=20),
+        model.LostReason(name="No budget", sequence=30),
+        model.LostReason(name="No answer", sequence=40),
+    ])
+
+    def stages(pipeline_id):
+        return session.query(model.Stage).filter_by(pipeline_id=pipeline_id) \
+            .order_by(model.Stage.sequence).all()
+
+    sales_stages, renewal_stages = stages(sales), stages(renewals)
+    by_name = {p.name: p.id for p in session.query(model.Partner)
+               .filter(model.Partner.parent_id.is_(None))}
+    admin = session.query(model.User).filter_by(username="admin").first()
+    for name, partner, pipeline, stage, amount in (
+            ("New shelving for the shop", "Smith, John", sales, sales_stages[0], 1800),
+            ("Warehouse racking", "Northwind Trading", sales, sales_stages[2], 12500),
+            ("Seasonal stock", "Doe, Jane", sales, sales_stages[1], 950),
+            ("Maintenance contract 2027", "Northwind Trading", renewals,
+             renewal_stages[0], 4200)):
+        session.add(model.Opportunity(
+            name=name, partner_id=by_name[partner], pipeline_id=pipeline,
+            stage_id=stage.id, amount=amount, user_id=admin.id if admin else None))
 
 
 def main():

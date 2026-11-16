@@ -1,0 +1,8 @@
+# The CRM in the demo: the crm plugin on the demo's partners, with the menu
+# that surfaces it. The plugin is menu-silent like the rest of the commons.
+name: demo_crm
+version: 0.0.1
+description: Opportunities on the partners of the demo, through the crm plugin
+license: MIT
+author: "Claudio Driussi"
+depends_on: [demo_ui, crm]

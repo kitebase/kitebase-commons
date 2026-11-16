@@ -23,7 +23,7 @@ author: "Claudio Driussi"
 # domain names a role code.
 plugins:
   - path: ../plugins
-    include: [office, persons, partners, activities]
+    include: [office, persons, partners, activities, crm]
   - plugins
 
 # db engine for sqlalchemy

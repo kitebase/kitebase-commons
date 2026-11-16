@@ -1,0 +1,9 @@
+# Sales: the opportunities, where they come from, and the tables that shape
+# them.
+menu_items:
+  sales:          { label: Sales,         icon: handshake,   order: 20 }
+  board:          { label: Board,         icon: kanban,      parent: sales, order: 5,  action: stack_push, panel: opportunity_board }
+  opportunities:  { label: Opportunities, icon: target,      parent: sales, order: 10, action: stack_push, panel: opportunity_list }
+  campaigns:      { label: Campaigns,     icon: megaphone,   parent: sales, order: 20, action: stack_push, panel: campaign_list }
+  pipelines:      { label: Pipelines,     icon: git-commit-horizontal, parent: sales, order: 80, action: stack_push, panel: pipeline_list }
+  lost_reasons:   { label: Lost reasons,  icon: circle-x,    parent: sales, order: 90, action: stack_push, panel: lostreason_list }
