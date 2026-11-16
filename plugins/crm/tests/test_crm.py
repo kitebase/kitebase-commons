@@ -348,3 +348,120 @@ def test_the_ticked_opportunities_go_to_another_salesperson(app):
     assert result['data']['touched'] == ids
     with app.get_session() as s:
         assert {o.user_id for o in s.query(Opp)} == {8}
+
+
+# ── Campaigns, from the partners ─────────────────────────────────────────────
+
+def campaign(app, cid=1, name='Spring fair', active=True):
+    with app.get_session() as s:
+        s.add(app.models['Campaign'](id=cid, name=name, active=active))
+        if s.get(app.models['ActivityType'], 'call') is None:
+            s.add(app.models['ActivityType'](id='call', label='Call', pick=True))
+        s.commit()
+
+
+def contact(ids, campaign_id, subject='Invitation', **more):
+    return call('crm_campaign_contact_save', ids=ids, campaign_id=campaign_id, type='call',
+                subject=subject, **more)
+
+
+def figures(app, cid):
+    Campaign = app.models['Campaign']
+    with app.get_session() as s:
+        return s.query(Campaign.contacted, Campaign.opportunity_count, Campaign.won_count,
+                       Campaign.won_amount).filter(Campaign.id == cid).one()
+
+
+def test_contacting_writes_one_activity_per_partner_linked_to_the_campaign(app):
+    campaign(app)
+    form = call('crm_campaign_contact', ids=[1, 2])['data']
+    assert form['action'] == 'form' and form['values']['campaign_id'] == 1
+    result = contact([1, 2], 1)
+    assert result['data']['message'] == '2 partners contacted' and result['data']['touched'] == [1, 2]
+    Link = app.models['ActivityLink']
+    with app.get_session() as s:
+        assert s.query(Link).filter_by(model='Campaign', record_id='1').count() == 2
+        assert {l.record_id for l in s.query(Link).filter_by(model='Partner')} == {'1', '2'}
+    assert figures(app, 1)[0] == 2
+
+
+def test_with_no_active_campaign_it_says_to_create_one(app):
+    campaign(app, active=False)
+    result = call('crm_campaign_contact', ids=[1])
+    assert result['status'] == 'error' and 'no active campaign' in result['message']
+
+
+def test_a_new_opportunity_from_a_partner_guesses_no_campaign(app):
+    campaign(app)
+    contact([1], 1)
+    draft = call('crm_new_opportunity', id=1)['data']
+    assert draft['action'] == 'open_form' and draft['page'] == 'opportunity_form'
+    assert draft['draft']['values'] == {'partner_id': 1}
+
+
+def test_a_contact_starts_to_do_and_is_counted_until_it_has_its_outcome(app):
+    campaign(app)
+    form = call('crm_campaign_contact', ids=[1])['data']
+    assert form['values']['due_date']
+    contact([1, 2], 1, due_date=form['values']['due_date'])
+    Campaign = app.models['Campaign']
+    with app.get_session() as s:
+        assert s.query(Campaign.to_handle).filter(Campaign.id == 1).scalar() == 2
+
+
+def campaign_activity(app, partner_id):
+    Activity, Link = app.models['Activity'], app.models['ActivityLink']
+    with app.get_session() as s:
+        return (s.query(Activity.id).join(Link, Link.activity_id == Activity.id)
+                .filter(Link.model == 'Partner', Link.record_id == str(partner_id))
+                .order_by(Activity.id.desc()).first()[0])
+
+
+def test_an_activity_becomes_an_opportunity_with_its_own_partner_and_campaign(app):
+    make(app)
+    campaign(app)
+    contact([1, 2], 1, subject='New products line', due_date='2026-12-01')
+    activity_id = campaign_activity(app, 2)
+    result = call('crm_opportunity_from_activity', id=activity_id)
+    assert result['status'] == 'success', result
+    opened = result['data']
+    assert opened['action'] == 'open_form' and opened['page'] == 'opportunity_form'
+    opp = row(app, opened['id'])
+    assert (opp.name, opp.partner_id, opp.campaign_id) == ('New products line', 2, 1)
+    Activity, Link = app.models['Activity'], app.models['ActivityLink']
+    with app.get_session() as s:
+        assert s.get(Activity, activity_id).done_at is not None
+        assert s.query(Link).filter_by(activity_id=activity_id, model='Opportunity',
+                                       record_id=str(opp.id)).count() == 1
+    # The other contact is still to handle; this one cannot make a second opportunity
+    Campaign = app.models['Campaign']
+    with app.get_session() as s:
+        assert s.query(Campaign.to_handle).filter(Campaign.id == 1).scalar() == 1
+    again = call('crm_opportunity_from_activity', id=activity_id)
+    assert again['status'] == 'error' and 'already belongs' in again['message']
+
+
+def test_an_activity_on_no_partner_makes_no_opportunity(app):
+    from activities.api import log_activity
+    make(app)
+    with app.get_session() as s:
+        s.add(app.models['ActivityType'](id='call', label='Call'))
+        s.commit()
+    personal = log_activity(None, 'call', 'Remember the milk')
+    result = call('crm_opportunity_from_activity', id=personal)
+    assert result['status'] == 'error' and 'no partner' in result['message']
+
+
+def test_the_figures_count_what_the_campaign_brought(app):
+    make(app)
+    campaign(app)
+    contact([1, 2], 1)
+    send = as_user(7)
+    send('create', {'name': 'From the fair', 'partner_id': 1, 'campaign_id': 1, 'amount': 1000})
+    send('create', {'name': 'Also', 'partner_id': 2, 'campaign_id': 1, 'amount': 500})
+    Opp = app.models['Opportunity']
+    with app.get_session() as s:
+        won = s.query(Opp).filter_by(name='From the fair').one().id
+    send('update', {'outcome': 'won'}, id=won)
+    contacted, opportunities, won_count, won_amount = figures(app, 1)
+    assert (contacted, opportunities, won_count, float(won_amount)) == (2, 2, 1, 1000.0)

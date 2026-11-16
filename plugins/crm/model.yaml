@@ -259,3 +259,36 @@ tables:
       - name: description
         type: Text
         label: "Description"
+
+      # What it brought, computed in the query (model.py)
+      - name: contacted
+        type: Integer
+        virtual: true
+        editable: false
+        label: "Contacted"
+        help: "The partners its activities reached."
+
+      - name: to_handle
+        type: Integer
+        virtual: true
+        editable: false
+        label: "To handle"
+        help: "The contacts still to do."
+
+      - name: opportunity_count
+        type: Integer
+        virtual: true
+        editable: false
+        label: "Opportunities"
+
+      - name: won_count
+        type: Integer
+        virtual: true
+        editable: false
+        label: "Won"
+
+      - name: won_amount
+        type: Money
+        virtual: true
+        editable: false
+        label: "Won value"

@@ -1,6 +1,16 @@
 <script module lang="ts">
   import { registerTranslations } from '$kitebase/i18n';
 
+  /** A command of the rows, declared by the page that shows the list. */
+  export interface RowCommand {
+    id: string;
+    label: string;
+    endpoint: string;
+    /** Only on what is still to do: a contact that has had its outcome has no more. */
+    todo?: boolean;
+  }
+
+
   registerTranslations('it', {
     'Loading...': 'Caricamento...',
     'Nothing to do': 'Niente da fare',
@@ -44,6 +54,11 @@
    * do again. A new activity with no due date is a fact recorded, done now.
    * The subject opens the activity's form (`activity_form`) on the stack, for
    * what the line does not write; the list reads again when it is closed.
+   *
+   * `commands` are what the place that shows the list adds to its rows: a
+   * campaign's contacts become opportunities, a list of mail does not. Each
+   * calls its endpoint with the activity's `id`, and the answer is applied as
+   * any command's (resultAction.ts); the list reads again after it.
    */
   import { getContext } from 'svelte';
   import { stack as globalStack } from '$kitebase/stack/stack.svelte';
@@ -54,6 +69,7 @@
   import { api } from '$kitebase/api/client';
   import { errorText } from '$kitebase/api/envelope';
   import { resolveIcon } from '$kitebase/components/icons';
+  import { applyResult } from '$kitebase/components/resultAction';
   import { ToggleGroup } from 'bits-ui';
   import { Circle, CircleCheck, List, Trash2 } from '@lucide/svelte';
 
@@ -109,13 +125,15 @@
     /** Read again whenever it changes: the trigger of a split area, which a
      *  list sends anew when the row under the cursor may have changed. */
     refresh?: unknown;
+    /** Commands on the rows, from the page that shows the list. */
+    commands?: RowCommand[];
   }
 
   type State = 'todo' | 'done' | 'all';
 
   let {
     endpoint, record = null, userId = null, empty, defaultType, defaultState = 'all',
-    showUser = true, onchange, refresh,
+    showUser = true, onchange, refresh, commands = [],
   }: Props = $props();
 
   const stack = getContext<StackInstance>('kb:stack') ?? globalStack;
@@ -220,6 +238,12 @@
     });
   }
 
+  async function run(command: RowCommand, item: Item) {
+    const res = await api.endpoint(command.endpoint, { id: item.id });
+    await applyResult(res, { title: _(command.label), stack, reload: () => void load() });
+    await load();
+  }
+
   async function remove(item: Item) {
     if (!(await msgbox.confirm(_('Delete this activity?'), item.subject))) return;
     await act('db', { table: 'Activity', method: 'delete', id: item.id });
@@ -298,6 +322,11 @@
             {#if item.note}<p class="text">{item.note}</p>{/if}
           </div>
           <div class="actions">
+            {#each commands.filter((c) => !c.todo || item.when !== 'done') as command (command.id)}
+              <button type="button" class="command" onclick={() => run(command, item)}>
+                {_(command.label)}
+              </button>
+            {/each}
             {#if item.when === 'done'}
               {#if item.day}
                 <button type="button" onclick={() => act('activity_done', { id: item.id, done: false })}>

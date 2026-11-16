@@ -50,9 +50,10 @@ def clean(app):
     activity; no policy and nobody logged in."""
     with app.get_session() as s:
         for name in ('ActivityLink', 'Activity', 'ActivityType', 'Opportunity', 'Stage',
-                     'Pipeline', 'LostReason', 'Partner', 'User'):
+                     'Pipeline', 'LostReason', 'Campaign', 'Partner', 'User'):
             s.query(app.models[name]).delete()
         s.add(app.models['Partner'](id=1, kind='organization', name='Riverside'))
+        s.add(app.models['Partner'](id=2, kind='organization', name='Hillside'))
         for uid, name in ((7, 'Tester'), (8, 'Other')):
             s.add(app.models['User'](id=uid, username=name.lower(), name=name, password='x',
                                      email=f'{name.lower()}@example.com'))

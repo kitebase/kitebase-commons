@@ -36,6 +36,61 @@ pages:
         props:
           model: Opportunity
 
+  # A campaign and what it brought: the figures in the list, the
+  # opportunities it is the origin of beside it, its activities below.
+  campaign_list:
+    title: Campaigns
+    content:
+      type: table
+      source:
+        model: Campaign
+        order_by: [-start_date, name]
+      columns:
+        - field: name
+          title: Campaign
+        - field: start_date
+          title: From
+          width: 110
+        - field: end_date
+          title: To
+          width: 110
+        - field: contacted
+          title: Contacted
+          width: 110
+        - field: to_handle
+          title: To handle
+          width: 110
+        - field: opportunity_count
+          title: Opportunities
+          width: 120
+        - field: won_count
+          title: Won
+          width: 90
+        - field: won_amount
+          title: Won value
+          width: 130
+    panels:
+      - id: opportunities
+        pos: right
+        width: 460
+        trigger: { event: row_click, pass: [id] }
+        $ref: views.campaign_opportunities
+      # The contacts of the campaign: one still to do that went well becomes
+      # an opportunity, with its partner and this campaign (endpoints.py)
+      - id: activities
+        pos: bottom
+        height: 300
+        trigger: { event: row_click, pass: [id] }
+        type: plugin
+        component: activities.timeline
+        props:
+          model: Campaign
+          commands:
+            - id: opportunity
+              label: Create opportunity
+              endpoint: crm_opportunity_from_activity
+              todo: true
+
   opportunity_board:
     title: Opportunity board
     content:
@@ -43,8 +98,12 @@ pages:
       type: kanban
       allow_views: [kanban, table]
       source: *opportunity_source
+      # The open ones of whoever opens it: rules the user sees and may take
+      # away, to look at a colleague's board or everyone's. Hiding the others'
+      # for good is an access rule (README.md), not this.
       rules:
         - {field: outcome, op: eq, value: open}
+        - {field: user_id, op: eq, value: $user_id}
     panels: *opportunity_panels
 
   # The stage offered is one of the opportunity's pipeline (lookup.filters);
@@ -292,3 +351,78 @@ views:
             type: Text
             widget: textarea
 
+  # A contact for a campaign, from the ticked partners (endpoints.py fills the
+  # campaigns and the types). With no date it is done now; with one, to do.
+  crm_campaign_form:
+    type: form
+    presentation: dialog
+    source: {}
+    layout:
+      - type: section
+        id: contact
+        fields:
+          - name: campaign_id
+            label: Campaign
+            type: Integer
+            required: true
+          - name: type
+            label: Type
+            type: String
+            required: true
+          - name: subject
+            label: Subject
+            type: String
+            required: true
+          - name: due_date
+            label: Due
+            type: Date
+            help: With a date the contact is to do, and stays open until it has its outcome. Empty, it is recorded as done now.
+          - name: note
+            label: Note
+            type: Text
+            widget: textarea
+
+  # The commands this plugin adds to every list of partners: the view is the
+  # partners plugin's, merged by id.
+  partner_table:
+    navigator:
+      commands:
+        - id: new_opportunity
+          label: New opportunity
+          help: Opens a new opportunity for this partner.
+          icon: target
+          scope: row
+          key: o
+          endpoint: crm_new_opportunity
+        - id: campaign_contact
+          label: Contact for a campaign
+          help: Records a contact for a campaign with each ticked partner, or with the one under the cursor.
+          icon: megaphone
+          scope: global
+          endpoint: crm_campaign_contact
+
+  # The opportunities a campaign is the origin of, beside the campaigns
+  campaign_opportunities:
+    type: table
+    source:
+      model: Opportunity
+      joins:
+        - Partner: {type: left, "on": "Opportunity.partner_id = Partner.id"}
+        - Stage: {type: left, "on": "Opportunity.stage_id = Stage.id"}
+      filters:
+        conditions:
+          - Opportunity.campaign_id: ["=", "$trigger.id"]
+      order_by: [name]
+    navigator:
+      hide: [add]
+    columns:
+      - field: name
+        title: Opportunity
+      - field: Partner.name as partner
+        title: Partner
+      - field: Stage.name as stage
+        title: Stage
+        width: 110
+      - field: outcome
+        title: Outcome
+        width: 90
