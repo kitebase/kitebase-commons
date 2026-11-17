@@ -35,7 +35,7 @@ def _archivable_model(data):
 def _label(record, model):
     """What to call a record in a menu entry: its display field, else its key."""
     info = search_info(table_definition(model))
-    field = info.get('display_field') or info.get('search_pk') or 'id'
+    field = info.get('display_field') or info.get('search_key') or 'id'
     return str(getattr(record, field, ''))
 
 
