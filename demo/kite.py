@@ -90,22 +90,14 @@ def seed(app, model):
 
 
 def seed_crm(session, model):
-    """The standard pipeline the plugin writes, a second one beside it (the
-    renewals of the contracts, with stages of their own), the reasons a
-    negotiation is lost, and a few opportunities to look at."""
-    from crm.api import make_pipeline  # type: ignore
-
-    if session.query(model.Pipeline).first():
+    """A few opportunities to look at, on the two pipelines of the plugin's
+    seed (sales, and the renewals of the contracts)."""
+    if session.query(model.Opportunity).first():
         return
-    sales = make_pipeline(session)
-    renewals = make_pipeline(session, "Renewals",
-                             ["Expiring", "Proposal sent", "Signed"])
-    session.add_all([
-        model.LostReason(name="Price", sequence=10),
-        model.LostReason(name="Went to a competitor", sequence=20),
-        model.LostReason(name="No budget", sequence=30),
-        model.LostReason(name="No answer", sequence=40),
-    ])
+    pipelines = [r[0] for r in session.query(model.Pipeline.id).order_by(model.Pipeline.sequence)]
+    if len(pipelines) < 2:
+        return
+    sales, renewals = pipelines[:2]
 
     def stages(pipeline_id):
         return session.query(model.Stage).filter_by(pipeline_id=pipeline_id) \

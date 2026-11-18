@@ -12,10 +12,23 @@ sets.
 """
 import pytest
 
+from kitebase import seed
 from kitebase.endpoints import CommandDispatcher
 
 
-def make(app, name=None, stages=None):
+def make(app, name=None, stages=()):
+    """A named pipeline from code; with no name, the pipelines of the plugin's
+    seed, written only while there is none (None otherwise), and the first of
+    them: Sales."""
+    if name is None:
+        files = [f for f in seed.seed_files(app, 'crm/base') if f.model == 'Pipeline']
+        lines, ok = seed.apply(app, files)
+        assert ok, lines
+        if 'skipped' in lines[0]:
+            return None
+        Pipeline = app.models['Pipeline']
+        with app.get_session() as s:
+            return s.query(Pipeline.id).order_by(Pipeline.sequence).first()[0]
     from crm.api import make_pipeline
     with app.get_session() as s:
         pid = make_pipeline(s, name, stages)
@@ -83,7 +96,9 @@ def test_with_nothing_named_it_starts_from_the_first_stage_of_the_first_pipeline
 
 def test_an_archived_pipeline_is_not_the_default(app):
     sales = make(app)
-    renewals = make(app, 'Renewals', ['Expiring', 'Signed'])
+    Pipeline = app.models['Pipeline']
+    with app.get_session() as s:      # the next of the seed: Renewals
+        renewals = s.query(Pipeline.id).order_by(Pipeline.sequence).all()[1][0]
     with app.get_session() as s:
         s.get(app.models['Pipeline'], sales).active = False
         s.commit()

@@ -1,7 +1,7 @@
 # A light CRM: opportunities moving through the stages of a pipeline, won or
 # lost, with the activities that tell their story. One pipeline is enough for
-# most: api.make_pipeline writes a standard one where there is none. A second
-# pipeline (renewals beside new customers) is a row, with stages of its own.
+# most; the seed writes two when the table is born, sales and renewals, and
+# another pipeline is a row, with stages of its own.
 #
 # See README.md.
 name: crm

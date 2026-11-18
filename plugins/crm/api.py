@@ -1,41 +1,30 @@
-"""The pipelines from code: the standard one, and where an opportunity starts.
+"""The pipelines from code: one more, and where an opportunity starts.
 
     from crm.api import make_pipeline
 
-    make_pipeline(session)          # the standard pipeline, where there is none
+    make_pipeline(session, "Renewals", ["Expiring", "Signed"])
 
-These functions are for code, which answers for what it writes: they check no
+The standard pipeline is the plugin's seed (seed/base/Pipeline.yaml). These
+functions are for code, which answers for what it writes: they check no
 permission.
 """
 from typing import Any, Optional, Sequence
 
 import kitebase.utils
-from kitebase.i18n import _, use_locale
 
 # The values of Opportunity.outcome: open while it is negotiated, then won or lost
 OUTCOMES = ('open', 'won', 'lost')
 
-STANDARD = ('Sales', ('New', 'Qualified', 'Proposal', 'Negotiation'))
 
-
-def make_pipeline(session: Any, name: Optional[str] = None,
-                  stages: Optional[Sequence[str]] = None) -> Optional[int]:
-    """A pipeline with its stages, in the language of the application; with
-    no name, the standard one, written only where there is no pipeline at all.
-    The id of the pipeline made, None when nothing was written. The caller
-    commits."""
+def make_pipeline(session: Any, name: str, stages: Sequence[str] = ()) -> int:
+    """A pipeline with its stages in this order, after the others. The id of
+    the pipeline made. The caller commits."""
     app = kitebase.utils.get_app()
     Pipeline, Stage = app.models['Pipeline'], app.models['Stage']
-    if name is None:
-        if session.query(Pipeline.id).first() is not None:
-            return None
-        name, stages = STANDARD
-        with use_locale(app.plugins.config.get('locale', 'en')):
-            name, stages = _(name), [_(s) for s in stages]
     pipeline = Pipeline(name=name, sequence=_next_sequence(session, Pipeline))
     session.add(pipeline)
     session.flush()
-    for place, stage in enumerate(stages or (), 1):
+    for place, stage in enumerate(stages, 1):
         session.add(Stage(pipeline_id=pipeline.id, name=stage, sequence=place))
     session.flush()
     return pipeline.id

@@ -1,0 +1,20 @@
+- name: Sales
+  sequence: 10
+  Stage:
+  - name: New
+    sequence: 1
+  - name: Qualified
+    sequence: 2
+  - name: Proposal
+    sequence: 3
+  - name: Negotiation
+    sequence: 4
+- name: Renewals
+  sequence: 20
+  Stage:
+  - name: Expiring
+    sequence: 1
+  - name: Proposal sent
+    sequence: 2
+  - name: Signed
+    sequence: 3

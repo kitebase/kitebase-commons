@@ -139,20 +139,21 @@ who leaves hands their opportunities over.
 
 ## The standard pipeline
 
-The plugin ships no rows. `crm.api.make_pipeline(session)` writes the standard
-pipeline (New, Qualified, Proposal, Negotiation) in the language of the
-application, only where there is no pipeline at all; with a name and stages it
-writes another:
+The plugin's seed (`seed/base`) writes two pipelines, Sales (New, Qualified,
+Proposal, Negotiation) and Renewals (Expiring, Proposal sent, Signed), and four
+lost reasons, in the language of the application, when their tables are born: on a new database, or when `db-sync`
+adds the plugin to one. A table that exists is left alone, and
+`kitebase db-seed crm/base` applies the set where a table is still empty.
+
+Another pipeline is a row, written from the UI or from code:
 
 ```python
 from crm.api import make_pipeline
 
-make_pipeline(session)
-make_pipeline(session, "Renewals", ["Expiring", "Proposal sent", "Signed"])
+make_pipeline(session, "Projects", ["Brief", "Quote", "Accepted"])
 ```
 
-The demo's seed (`demo/kite.py`) calls it, with a second pipeline, some lost
-reasons and a few opportunities to look at.
+The demo's seed (`demo/kite.py`) adds a few opportunities to look at.
 
 ## Not here yet
 

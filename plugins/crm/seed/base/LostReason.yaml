@@ -1,0 +1,8 @@
+- name: Price
+  sequence: 10
+- name: Went to a competitor
+  sequence: 20
+- name: No budget
+  sequence: 30
+- name: No answer
+  sequence: 40

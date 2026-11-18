@@ -30,12 +30,20 @@ register_translations('it', {
     'Open':                     'Aperta',
     'Won':                      'Vinta',
     'Lost':                     'Persa',
-    # The standard pipeline (api.make_pipeline), written in the app's language
+    # The standard pipelines and lost reasons (seed/base), written in the app's language
     'Sales':                    'Vendite',
     'New':                      'Nuova',
     'Qualified':                'Qualificata',
     'Proposal':                 'Offerta',
     'Negotiation':              'Trattativa',
+    'Renewals':                 'Rinnovi',
+    'Expiring':                 'In scadenza',
+    'Proposal sent':            'Offerta inviata',
+    'Signed':                   'Firmato',
+    'Price':                    'Prezzo',
+    'Went to a competitor':     'Scelto un concorrente',
+    'No budget':                'Nessun budget',
+    'No answer':                'Nessuna risposta',
     # The story of the negotiation
     'From {old} to {new}':      'Da {old} a {new}',
     'Lost: {reason}':           'Persa: {reason}',
