@@ -3,3 +3,4 @@
 
 permissions:
   tables.browse: { label: Browse every table }
+  tables.seed: { label: Compare a table with a seed or a file and add its new rows }

@@ -6,6 +6,7 @@
     'Name': 'Nome',
     'Plugin': 'Plugin',
     'Kind': 'Tipo',
+    'Seed': 'Seed',
   });
 </script>
 
@@ -16,13 +17,18 @@
    * A double click or Enter on a row opens the table's generated list on the
    * stack, and from there its generated form: columns, filters, the rule editor.
    * What can be written is decided by each table's grants, as everywhere.
+   *
+   * `commands` come from the page (pages.yaml), pruned by the server like any
+   * command: Compare with seed is there only for whoever may use it.
    */
   import { getContext } from 'svelte';
   import { _ } from '$kitebase/i18n';
   import DataView from '$kitebase/components/DataView.svelte';
   import PanelPage from '$kitebase/components/PanelPage.svelte';
   import { stack as globalStack, type StackInstance } from '$kitebase/stack/stack.svelte';
-  import type { ViewDescriptor } from '$kitebase/components/dataview.types';
+  import type { CommandItem, ViewDescriptor } from '$kitebase/components/dataview.types';
+
+  let { commands = [] }: { commands?: CommandItem[] } = $props();
 
   const stack = getContext<StackInstance>('kb:stack') ?? globalStack;
 
@@ -35,9 +41,11 @@
       { field: 'table', title: 'SQL' },
       { field: 'plugin', title: _('Plugin') },
       { field: 'kind', title: _('Kind') },
+      { field: 'seed', title: _('Seed') },
     ],
     // Rows of an endpoint, not of a table: nothing to add or delete here.
-    navigator: { mode: 'readonly' },
+    // svelte-ignore state_referenced_locally
+    navigator: { mode: 'readonly', commands },
   } as unknown as ViewDescriptor;
 
   function onEvent(name: string, data: unknown) {
