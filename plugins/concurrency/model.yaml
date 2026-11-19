@@ -1,0 +1,48 @@
+# The version of the documents open in a form, outside their rows.
+
+tables:
+
+  EditMarker:
+    name: edit_markers
+    label: "Edit marker"
+    help: |
+      One row per document opened in a form: the version of what it holds.
+      A marker locks nothing; a row deleted only makes the next save of that
+      document a conflict, never a loss.
+    columns:
+      - name: id
+        type: Integer
+        primary_key: true
+        autoincrement: true
+
+      # The root of the aggregate: the table a form opens, never a row of a
+      # collection, which shares the version of its root.
+      - name: model
+        type: String
+        length: 64
+        nullable: false
+        label: "Table"
+
+      - name: record_id
+        type: String
+        length: 64
+        nullable: false
+        label: "Record"
+
+      # Random and opaque: the client sends it back as it received it.
+      - name: token
+        type: String
+        length: 32
+        nullable: false
+        label: "Version"
+
+      - name: touched_at
+        type: DateTime
+        nullable: false
+        label: "Touched at"
+
+    indexes:
+      - name: idx_edit_marker_record
+        columns: [model, record_id]
+        unique: true
+        description: "One marker per document"

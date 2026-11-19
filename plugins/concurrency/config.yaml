@@ -1,0 +1,10 @@
+# Two saves never overwrite each other in silence: a document opened in a
+# form carries a version, and a save that brings a version older than the
+# stored one is refused with the document as it is now. Optimistic: nobody
+# is ever locked out of a record. See README.md.
+name: concurrency
+version: 0.0.1
+description: Saves that never overwrite each other in silence
+license: MIT
+author: "Claudio Driussi"
+url: https://claudiodriussi.it
