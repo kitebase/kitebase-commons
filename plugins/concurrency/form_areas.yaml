@@ -1,0 +1,4 @@
+# Who else is editing the document, on top of every form of a table
+form_areas:
+  top:
+    concurrency.presence: {}

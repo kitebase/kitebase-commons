@@ -24,6 +24,9 @@ same: whoever holds the document open learns it at the save.
 
 Writes the session does not see (bulk updates, SQL) are not seen here: a
 procedure that writes that way names the documents it touched with `touched`.
+
+Who is editing a document now is in `presence.py`; a document deleted takes its
+marker and its presences with it.
 """
 import secrets
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
@@ -225,6 +228,8 @@ def _apply(session, flush_context) -> None:
     if gone:
         table = _table(app)
         session.connection().execute(delete(table).where(_where(table, gone)))
+        from concurrency.presence import forget     # it imports this module
+        forget(session.connection(), gone)
 
 
 @event.listens_for(Session, 'after_commit')

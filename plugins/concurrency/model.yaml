@@ -46,3 +46,70 @@ tables:
         columns: [model, record_id]
         unique: true
         description: "One marker per document"
+
+  EditPresence:
+    name: edit_presences
+    label: "Presence"
+    help: |
+      Who is editing a document now: a person with a form gone dirty, or a
+      procedure that says so. Advice, not a lock: it expires by itself when
+      nothing renews it, and nothing rests on its release.
+    columns:
+      - name: id
+        type: Integer
+        primary_key: true
+        autoincrement: true
+
+      # The root of the document, as in the marker
+      - name: model
+        type: String
+        length: 64
+        nullable: false
+        label: "Table"
+
+      - name: record_id
+        type: String
+        length: 64
+        nullable: false
+        label: "Record"
+
+      # Who holds it: `user:<id>` for a person, whatever one form or tab they
+      # edit from; a key of its own for each procedure.
+      - name: holder
+        type: String
+        length: 64
+        nullable: false
+        label: "Holder"
+
+      - name: user_name
+        type: String
+        length: 120
+        label: "User"
+
+      # What a procedure is doing, in its words; none for a person
+      - name: doing
+        type: String
+        length: 120
+        label: "Doing"
+
+      - name: since
+        type: DateTime
+        nullable: false
+        label: "Since"
+
+      - name: last_activity
+        type: DateTime
+        nullable: false
+        label: "Last activity"
+
+      # A person's lease is renewed by activity; a procedure may take a longer one
+      - name: expires_at
+        type: DateTime
+        nullable: false
+        label: "Expires at"
+
+    indexes:
+      - name: idx_edit_presence_holder
+        columns: [model, record_id, holder]
+        unique: true
+        description: "One presence per holder and document"
