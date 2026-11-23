@@ -77,6 +77,9 @@ with editing('Order', 7, doing='Shipping in progress'):
 procedure needs one. The endpoints of the form are `presence_touch`,
 `presence_who` and `presence_release`, for whoever may read the document.
 
+A presence is a lease of the `transient` plugin on the document, which comes
+with this one, and the same table holds the works in progress of `jobs`.
+
 The times, in the application's `config.yaml`:
 
 ```yaml

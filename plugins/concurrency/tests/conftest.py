@@ -91,7 +91,7 @@ def clean(app):
     alone, a loan of book 1."""
     m = app.models
     with app.get_session() as s:
-        for name in ('EditPresence', 'EditMarker', 'Loan', 'Note', 'Chapter', 'Book'):
+        for name in ('Lease', 'EditMarker', 'Loan', 'Note', 'Chapter', 'Book'):
             s.query(m[name]).delete()
         s.add_all([m['Book'](id=1, title='Dune'), m['Book'](id=2, title='Emma')])
         s.flush()

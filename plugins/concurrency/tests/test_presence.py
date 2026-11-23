@@ -52,7 +52,7 @@ def open_book(user, book_id=1):
 
 def rows(app):
     with app.get_session() as s:
-        return s.query(app.models['EditPresence']).all()
+        return s.query(app.models['Lease']).all()
 
 
 def test_a_touch_shows_me_to_the_others_and_not_to_myself(app):
@@ -91,7 +91,7 @@ def test_a_save_by_someone_else_shows_in_the_version(app):
 def test_a_presence_not_renewed_leaves_the_list(app):
     as_(ANN, presence_touch, book())
     with app.get_session() as s:
-        s.query(app.models['EditPresence']).update(
+        s.query(app.models['Lease']).update(
             {'expires_at': apptime.now() - timedelta(seconds=1)})
         s.commit()
     assert names(as_(BOB, presence_who, book())) == []
@@ -103,7 +103,7 @@ def test_a_presence_not_renewed_leaves_the_list(app):
 def test_the_seconds_are_the_server_s(app):
     as_(ANN, presence_touch, book())
     with app.get_session() as s:
-        s.query(app.models['EditPresence']).update({
+        s.query(app.models['Lease']).update({
             'since': apptime.now() - timedelta(minutes=25),
             'last_activity': apptime.now() - timedelta(minutes=1)})
         s.commit()
@@ -152,7 +152,7 @@ def test_the_sweep_takes_the_expired_and_the_old_markers(app):
     as_(ANN, presence_touch, book())
     with app.get_session() as s:
         past = apptime.now() - timedelta(days=2)
-        s.query(app.models['EditPresence']).update({'expires_at': past})
+        s.query(app.models['Lease']).update({'expires_at': past})
         s.query(app.models['EditMarker']).update({'touched_at': past})
         s.commit()
     presence.sweep(app)

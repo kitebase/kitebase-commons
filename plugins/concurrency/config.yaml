@@ -8,3 +8,4 @@ description: Saves that never overwrite each other in silence
 license: MIT
 author: "Claudio Driussi"
 url: https://claudiodriussi.it
+depends_on: [transient]

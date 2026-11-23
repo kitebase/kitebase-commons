@@ -18,6 +18,9 @@ document sees it as they would see a person:
 
     with editing('Order', 7, doing='Shipping in progress'):
         ...
+
+The presences are leases of `transient` on the document: a person holds
+`user:<id>`, a procedure a key of its own.
 """
 import secrets
 import time
@@ -25,8 +28,7 @@ from contextlib import contextmanager
 from datetime import timedelta
 from typing import Any, Dict, Iterator, List, Optional
 
-from sqlalchemy import and_, delete, or_, select, update
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import delete, select, update
 
 import kitebase.context
 import kitebase.utils
@@ -36,8 +38,7 @@ from kitebase.endpoints import endpoint
 from kitebase.errors import Invalid, NotFound
 
 from concurrency.markers import MARKER
-
-PRESENCE = 'EditPresence'
+from transient import lease
 
 # The defaults of the `concurrency:` section of the application's config.yaml
 DEFAULTS = {
@@ -57,20 +58,8 @@ def settings() -> Dict[str, int]:
 
 
 def _app():
-    """The application, when it has the presence table; None otherwise."""
-    app = kitebase.utils.get_app()
-    try:
-        return app if app.find_model_class(PRESENCE) is not None else None
-    except AttributeError:      # no database open
-        return None
-
-
-def _table(app):
-    return app.find_model_class(PRESENCE).__table__
-
-
-def _one(table, model: str, key: str):
-    return and_(table.c.model == model, table.c.record_id == key)
+    """The application, when it has the lease table; None otherwise."""
+    return lease.find_app()
 
 
 def _me() -> Dict[str, Any]:
@@ -78,21 +67,19 @@ def _me() -> Dict[str, Any]:
     ctx = kitebase.context.current() or {}
     if ctx.get('id') is None:
         raise Invalid('A presence needs a user')
-    return {'holder': f"user:{ctx['id']}",
+    return {'holder': f"user:{ctx['id']}", 'user_id': ctx['id'],
             'user_name': ctx.get('full_name') or ctx.get('username') or str(ctx['id'])}
 
 
-def _others(session, table, model: str, key: str, holder: Optional[str]) -> List[Dict[str, Any]]:
+def _others(session, model: str, key: str, holder: Optional[str]) -> List[Dict[str, Any]]:
     """Who else is there and not expired, the longest there first."""
     now = apptime.now()
-    rows = session.execute(
-        select(table).where(_one(table, model, key), table.c.expires_at > now)
-        .order_by(table.c.since)).mappings().all()
     # Seconds, measured here: the client's clock is not this one
     return [{'user_name': row['user_name'], 'doing': row['doing'],
              'for': int((now - row['since']).total_seconds()),
              'idle': int((now - row['last_activity']).total_seconds())}
-            for row in rows if row['holder'] != holder]
+            for row in lease.live(session, model=model, record_id=key)
+            if row['holder'] != holder]
 
 
 def _version(app, session, model: str, key: str) -> Optional[str]:
@@ -103,31 +90,10 @@ def _version(app, session, model: str, key: str) -> Optional[str]:
 
 def _news(app, session, model: str, key: str, holder: Optional[str]) -> Dict[str, Any]:
     return {'version': _version(app, session, model, key),
-            'others': _others(session, _table(app), model, key, holder),
+            'others': _others(session, model, key, holder),
             'every': settings()['touch_every']}
 
 
-def _hold(session, app, model: str, key: str, holder: str, user_name: Optional[str],
-          doing: Optional[str], lease: int) -> None:
-    """Take or renew a presence: `since` stays the first one."""
-    table, now = _table(app), apptime.now()
-    values = {'last_activity': now, 'expires_at': now + timedelta(seconds=lease)}
-    mine = and_(_one(table, model, key), table.c.holder == holder)
-    if session.execute(update(table).where(mine).values(**values)).rowcount:
-        return
-    try:
-        with session.begin_nested():
-            session.execute(table.insert().values(
-                model=model, record_id=key, holder=holder, user_name=user_name,
-                doing=doing, since=now, **values))
-    except IntegrityError:
-        # Taken at the same instant from another tab: renew that one
-        session.execute(update(table).where(mine).values(**values))
-
-
-def _let_go(session, app, model: str, key: str, holder: str) -> None:
-    table = _table(app)
-    session.execute(delete(table).where(_one(table, model, key), table.c.holder == holder))
 
 
 # ── The endpoints of a form ───────────────────────────────────────────────────
@@ -170,12 +136,10 @@ def presence_touch(data: Dict[str, Any]) -> Dict[str, Any]:
     seconds in `for` and `idle` measured by the server.
     """
     def act(session, app, model, key, me):
-        _hold(session, app, model, key, me['holder'], me['user_name'], None,
-              settings()['presence_ttl'])
-        table = _table(app)
+        lease.hold(session, me['holder'], settings()['presence_ttl'], model=model,
+                   record_id=key, user_id=me['user_id'], user_name=me['user_name'])
         # The expired ones of this document go now: the global sweep is rarer
-        session.execute(delete(table).where(_one(table, model, key),
-                                            table.c.expires_at <= apptime.now()))
+        lease.sweep(session, model=model, record_id=key)
         markers = app.find_model_class(MARKER).__table__
         session.execute(update(markers).where(markers.c.model == model, markers.c.record_id == key)
                         .values(touched_at=apptime.now()))
@@ -192,29 +156,29 @@ def presence_who(data: Dict[str, Any]) -> Dict[str, Any]:
 def presence_release(data: Dict[str, Any]) -> Dict[str, Any]:
     """I am no longer editing this document. A courtesy: the presence expires anyway."""
     return _call(data, lambda session, app, model, key, me:
-                 _let_go(session, app, model, key, me['holder']))
+                 lease.release(session, me['holder'], model=model, record_id=key))
 
 
 @before_tree_load
 def present(model: str, record_id: Any) -> Optional[Dict[str, Any]]:
     """Who is editing a document as it opens, beside its version."""
     app = _app()
-    if app is None or model in (MARKER, PRESENCE):
+    if app is None or model in (MARKER, lease.LEASE):
         return None
     holder = None
     ctx = kitebase.context.current() or {}
     if ctx.get('id') is not None:
         holder = f"user:{ctx['id']}"
     with app.get_session() as session:
-        others = _others(session, _table(app), model, str(record_id), holder)
+        others = _others(session, model, str(record_id), holder)
     return {'$presence': {'others': others, 'every': settings()['touch_every']}}
 
 
 # ── A procedure that says what it is doing ────────────────────────────────────
 
-def acquire(model: str, record_id: Any, doing: str, lease: Optional[int] = None) -> str:
+def acquire(model: str, record_id: Any, doing: str, ttl: Optional[int] = None) -> str:
     """
-    Show a procedure as present on a document, for `lease` seconds (the
+    Show a procedure as present on a document, for `ttl` seconds (the
     presence ttl by default). Returns its holder, for `release`; acquiring
     again with it renews the lease. Committed at once, in a session of its own.
     """
@@ -224,9 +188,9 @@ def acquire(model: str, record_id: Any, doing: str, lease: Optional[int] = None)
         return holder
     ctx = kitebase.context.current() or {}
     with app.get_session() as session:
-        _hold(session, app, model, str(record_id), holder,
-              ctx.get('full_name') or ctx.get('username'), doing,
-              lease or settings()['presence_ttl'])
+        lease.hold(session, holder, ttl or settings()['presence_ttl'], model=model,
+                   record_id=record_id, user_id=ctx.get('id'),
+                   user_name=ctx.get('full_name') or ctx.get('username'), doing=doing)
         session.commit()
     return holder
 
@@ -237,14 +201,14 @@ def release(model: str, record_id: Any, holder: str) -> None:
     if app is None:
         return
     with app.get_session() as session:
-        _let_go(session, app, model, str(record_id), holder)
+        lease.release(session, holder, model=model, record_id=record_id)
         session.commit()
 
 
 @contextmanager
-def editing(model: str, record_id: Any, doing: str, lease: Optional[int] = None) -> Iterator[str]:
+def editing(model: str, record_id: Any, doing: str, ttl: Optional[int] = None) -> Iterator[str]:
     """`acquire` for the length of a block, released however it ends."""
-    holder = acquire(model, record_id, doing, lease)
+    holder = acquire(model, record_id, doing, ttl)
     try:
         yield holder
     finally:
@@ -255,11 +219,9 @@ def editing(model: str, record_id: Any, doing: str, lease: Optional[int] = None)
 
 def forget(connection, roots) -> None:
     """The presences of documents deleted, in the transaction that deletes them."""
-    app = _app()
-    if app is None or not roots:
+    if _app() is None or not roots:
         return
-    table = _table(app)
-    connection.execute(delete(table).where(or_(*[_one(table, model, key) for model, key in roots])))
+    lease.forget(connection, roots)
 
 
 def sweep(app=None) -> None:
@@ -271,7 +233,7 @@ def sweep(app=None) -> None:
     markers = app.find_model_class(MARKER).__table__
     horizon = now - timedelta(seconds=settings()['marker_horizon'])
     with app.get_session() as session:
-        session.execute(delete(_table(app)).where(_table(app).c.expires_at <= now))
+        lease.sweep(session)
         session.execute(delete(markers).where(markers.c.touched_at < horizon))
         session.commit()
 
