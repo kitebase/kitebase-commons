@@ -1,0 +1,10 @@
+# Long work that says where it is: kitebase.notify writes a lease per work,
+# the client reads them with a poll and shows them beside the status line,
+# with a cancel where the work allows it. See README.md.
+name: jobs
+version: 0.0.1
+description: Long work that says where it is, and can be stopped where it allows
+license: MIT
+author: "Claudio Driussi"
+url: https://claudiodriussi.it
+depends_on: [transient]

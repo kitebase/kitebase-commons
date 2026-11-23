@@ -1,0 +1,100 @@
+# Who holds what, since when, alive until when: rows that expire by themselves.
+
+tables:
+
+  Lease:
+    name: leases
+    label: "Lease"
+    help: |
+      One row per holder of a subject: a person editing a document, a work in
+      progress, a process that must run alone. It expires by itself when
+      nothing renews it. Nothing durable is kept here: a row lost costs a
+      line on a screen, never data.
+    columns:
+      - name: id
+        type: Integer
+        primary_key: true
+        autoincrement: true
+
+      # The subject: a document (its root), or empty for a lease about no record
+      - name: model
+        type: String
+        length: 64
+        nullable: false
+        default: "''"
+        label: "Table"
+
+      - name: record_id
+        type: String
+        length: 64
+        nullable: false
+        default: "''"
+        label: "Record"
+
+      # Who holds it: `user:<id>`, `work:<key>`, the name of a process
+      - name: holder
+        type: String
+        length: 80
+        nullable: false
+        label: "Holder"
+
+      # For whom it shows, and the name others see
+      - name: user_id
+        type: Integer
+        label: "User id"
+
+      - name: user_name
+        type: String
+        length: 120
+        label: "User"
+
+      # What the holder is doing, in its own words: the last state, not a log
+      - name: doing
+        type: String
+        length: 200
+        label: "Doing"
+
+      - name: done
+        type: Integer
+        label: "Done"
+
+      - name: total
+        type: Integer
+        label: "Total"
+
+      # Whether the current phase may stop, and whether someone asked it to
+      - name: cancellable
+        type: Boolean
+        nullable: false
+        default: false
+        label: "Cancellable"
+
+      - name: cancel_requested
+        type: Boolean
+        nullable: false
+        default: false
+        label: "Cancel requested"
+
+      - name: since
+        type: DateTime
+        nullable: false
+        label: "Since"
+
+      - name: last_activity
+        type: DateTime
+        nullable: false
+        label: "Last activity"
+
+      - name: expires_at
+        type: DateTime
+        nullable: false
+        label: "Expires at"
+
+    indexes:
+      - name: idx_lease_holder
+        columns: [model, record_id, holder]
+        unique: true
+        description: "One lease per holder and subject"
+      - name: idx_lease_user
+        columns: [user_id]
+        description: "What a person has open"

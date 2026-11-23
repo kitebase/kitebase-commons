@@ -1,0 +1,4 @@
+# The line of the works in progress, beside the status line of the chrome
+chrome_areas:
+  status:
+    jobs.status: {}

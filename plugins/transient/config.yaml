@@ -1,0 +1,9 @@
+# The base of what expires by itself: leases, rows that say who holds what,
+# since when and alive until when. Nothing durable is kept here, ever: that is
+# what keeps the table cheap. jobs and concurrency build on it. See README.md.
+name: transient
+version: 0.0.1
+description: Leases, rows that expire by themselves
+license: MIT
+author: "Claudio Driussi"
+url: https://claudiodriussi.it
