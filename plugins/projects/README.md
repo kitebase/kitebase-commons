@@ -58,8 +58,14 @@ another project too is how two pieces of work refer to each other.
   (`on_change`, endpoint `projects_hours`): the same function the save uses.
 - "Log time" on the tasks (and on the projects, for hours on the project as a
   whole) opens the form already filled.
-- The form of a task lists its hours in a tab, read only: they are written
-  in their own form, whose rules a tree does not judge yet.
+- The form of a task lists its hours in a tab, where they are also written:
+  the rules take the project from the task as it is being saved
+  (`ctx.parent`). The hours are not parts of the task, so each row needs the
+  permissions of `TimeEntry`, and deleting a task keeps its hours on the
+  project.
+- `project_id` on the hours copies the task's on purpose: hours on the
+  project as a whole have no task, and the queries stay plain. A task moved
+  to another project takes its hours with it.
 - Computed in the query of a list (`model.py`): `open_tasks` and `spent_hours`
   on a project, `spent_hours` and `is_open` on a task. "My tasks" shows the
   open ones through `is_open`.
@@ -73,7 +79,9 @@ another project too is how two pieces of work refer to each other.
 - `project_form`, with its stages, `task_form` and `timeentry_form`.
 
 The tasks are not a collection of the project's form: a task has a board, a
-history and a form of its own, and its rules are judged on a single write.
+history and a form of its own, and its rules read its stage from the
+database, where a stage created in the same save is not there until it
+is written.
 
 ## From code
 

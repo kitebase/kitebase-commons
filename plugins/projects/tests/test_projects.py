@@ -285,6 +285,54 @@ def test_a_task_of_another_project_is_refused(app):
     assert 'not one of the project' in log(project_id=other, task_id=tid, hours=1)['message']
 
 
+def test_hours_written_in_the_form_of_the_task(app):
+    signed_in(partner_id=3)
+    pid = new_project()
+    tid = send('Task', 'create', {'name': 'Survey', 'project_id': pid})['data']['id']
+    result = save_tree({'page': 'task_form', 'root': {
+        'op': 'update', 'id': tid, 'values': {},
+        'children': {'time_entries': [
+            {'op': 'create', 'id': -2, 'values': {'date': '2026-11-24',
+                                                   'start_at': '09:00', 'end_at': '10:30'}}]}}})
+    assert result['status'] == 'success', result.get('message')
+    rows = result['data']['root']['children']['time_entries']
+    row = entry(app, rows[0]['id'])
+    assert (row.task_id, row.project_id, row.worker_id, float(row.hours)) == (tid, pid, 3, 1.5)
+
+
+def test_a_row_of_hours_refused_in_the_task_form_writes_nothing(app):
+    signed_in()                                     # a user that is no one
+    pid = new_project()
+    tid = send('Task', 'create', {'name': 'Survey', 'project_id': pid})['data']['id']
+    result = save_tree({'page': 'task_form', 'root': {
+        'op': 'update', 'id': tid, 'values': {'name': 'Renamed'},
+        'children': {'time_entries': [
+            {'op': 'create', 'id': -2, 'values': {'date': '2026-11-24', 'hours': 1}}]}}})
+    assert result['status'] == 'error' and 'Who worked' in result['message']
+    assert result['$flow']['row'] == {'collection': 'time_entries', 'id': -2}
+    assert task(app, tid).name == 'Survey'
+
+
+def test_hours_follow_their_task_to_another_project(app):
+    signed_in(partner_id=3)
+    one, other = new_project('One'), new_project('Other')
+    tid = send('Task', 'create', {'name': 'Survey', 'project_id': one})['data']['id']
+    before = log(task_id=tid, hours=1)['data']['id']
+    # Moved in its form, with an hour written in the same save: the new row
+    # takes the project the task is moving to, the old one follows it
+    result = save_tree({'page': 'task_form', 'root': {
+        'op': 'update', 'id': tid, 'values': {'project_id': other},
+        'children': {'time_entries': [
+            {'op': 'create', 'id': -2, 'values': {'date': '2026-11-24', 'hours': 2}}]}}})
+    assert result['status'] == 'success', result.get('message')
+    added = result['data']['root']['children']['time_entries']
+    assert {entry(app, r['id']).project_id for r in added} == {other}
+    assert entry(app, before).project_id == other
+    # and moved alone, by the db port
+    send('Task', 'update', {'project_id': one}, id=tid)
+    assert entry(app, before).project_id == one
+
+
 def test_a_project_with_hours_is_not_deleted(app):
     signed_in(partner_id=3)
     pid = new_project()

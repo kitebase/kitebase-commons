@@ -11,6 +11,8 @@ stage of the new one. Each move through the stages is a line of the history
 of the task, and so of its project.
 
 Hours always stand on a project, by a person, with a number (time_rules).
+Hours on a task are on its project: a task moved to another project takes
+its hours with it (task_hours).
 """
 from datetime import date
 
@@ -83,6 +85,19 @@ def task_rules(ctx):
         ctx.stay(_f('The priority is a whole number from 0 to {high}', high=TOP_PRIORITY))
 
 
+@on_write('Task', 'commit')
+def task_hours(ctx):
+    # The project of the hours is the task's, kept on them for the queries:
+    # it follows the task
+    if ctx.mode != 'update' or ctx.obj is None:
+        return
+    if _same(ctx.record.get('project_id'), (ctx.original or {}).get('project_id')):
+        return
+    TimeEntry = kitebase.utils.get_app().models['TimeEntry']
+    (ctx.session.query(TimeEntry).filter(TimeEntry.task_id == ctx.obj.id)
+     .update({TimeEntry.project_id: ctx.obj.project_id}, synchronize_session=False))
+
+
 track_moves('Task')
 
 
@@ -98,7 +113,7 @@ def time_rules(ctx):
     record = ctx.record
     task = record.get('task_id')
     if task not in (None, ''):
-        project = _task_project(ctx.session, task)
+        project = _task_project(ctx, task)
         if project is None:
             ctx.stay(_('The task is not there'))
         if record.get('project_id') in (None, ''):
@@ -137,7 +152,12 @@ def time_rules(ctx):
                     hours=hours, span=span))
 
 
-def _task_project(session, task_id):
+def _task_project(ctx, task_id):
+    """The project of the task: from the task as it will be written, when the
+    hours are a row of its form (it may be changing project in the same save),
+    from the database otherwise."""
+    if ctx.parent_model == 'Task' and _same(ctx.parent.get('id'), task_id):
+        return ctx.parent.get('project_id')
     Task = kitebase.utils.get_app().models['Task']
-    row = session.query(Task.project_id).filter(Task.id == task_id).first()
+    row = ctx.session.query(Task.project_id).filter(Task.id == task_id).first()
     return row[0] if row else None

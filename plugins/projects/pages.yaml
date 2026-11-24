@@ -3,9 +3,9 @@
 # each is the form its lists open.
 #
 # The tasks of a project are not a collection of its form: a task has a life
-# of its own (a board, a history, its own form), and its rules are judged on
-# a single write, not inside the tree of the project. The project's list shows
-# them under the project clicked.
+# of its own (a board, a history, its own form), and its rules read its stage
+# from the database, where a stage created in the same save is not there
+# until it is written. The project's list shows them under the project clicked.
 
 pages:
 
@@ -207,8 +207,10 @@ pages:
             - id: main
               fields:
                 - name: description
-        # The hours are listed, not written here: they are logged in their own
-        # form ("Log time"), whose rules a tree does not judge yet
+        # The hours of the task, written here or with "Log time": not parts of
+        # the task (deleted with it they would take the record of the work), so
+        # each row needs the permissions of TimeEntry, and its rules take the
+        # project from the task as it is being saved
         - id: relations
           type: tabs
           pages:
@@ -225,7 +227,8 @@ pages:
                   id: time_entries
                   model: TimeEntry
                   fk: task_id
-                  readonly: true
+                  prefill:
+                    project_id: $record.project_id
                   view:
                     type: table
                     columns:
