@@ -71,7 +71,8 @@ pages:
         - {field: assignee_id, op: eq, value: $ctx.partner_id}
     panels: *task_panels
 
-  # One project at a time, its own stages as the columns
+  # One project at a time, its own stages as the columns; the projects
+  # offered above the board are the open ones, typical jobs left out
   task_board:
     title: Task board
     help: The tasks of a project, one column per stage. Pick the project above the board; drag a card to move it, click it to see its story, double-click to open it.
@@ -80,6 +81,10 @@ pages:
       type: kanban
       allow_views: [kanban, table]
       source: *task_source
+      kanban:
+        within_filters:
+          state: [in, [planned, active, on_hold]]
+          is_template: false
     panels: *task_panels
 
   # A project, its stages and its story. The stages are its own: added,

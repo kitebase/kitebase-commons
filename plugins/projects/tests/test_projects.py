@@ -10,7 +10,10 @@ user signed in carries the partner they are in the login context.
 
     (cd commons/demo && uv run pytest -q ../plugins/projects/tests)
 """
+import pytest
+
 from kitebase import tokens
+from kitebase.errors import Invalid
 from kitebase.endpoint_tree import save_tree
 from kitebase.endpoints import CommandDispatcher
 
@@ -133,3 +136,38 @@ def test_the_priority_is_normal_or_high(app):
 
 def test_the_login_context_carries_the_partner_of_the_user(app):
     assert 'partner_id' in tokens.context_fields({})
+
+
+# -- Deleting -------------------------------------------------------------------
+
+def test_a_stage_with_tasks_is_not_deleted_and_says_why(app):
+    pid = new_project()
+    stage = stages(app, pid)[1][0]
+    assert send('Task', 'create', {'name': 'Survey', 'project_id': pid,
+                                   'stage_id': stage})['status'] == 'success'
+    with pytest.raises(Invalid) as refusal:
+        save_tree({'page': 'project_form', 'root': {
+            'op': 'update', 'id': pid, 'values': {},
+            'children': {'stages': [{'op': 'delete', 'id': stage}]}}})
+    assert '«In progress»' in str(refusal.value) and 'Task (1)' in str(refusal.value)
+    assert len(stages(app, pid)) == 4
+
+
+def test_an_empty_stage_is_deleted(app):
+    pid = new_project()
+    stage = stages(app, pid)[2][0]
+    result = save_tree({'page': 'project_form', 'root': {
+        'op': 'update', 'id': pid, 'values': {},
+        'children': {'stages': [{'op': 'delete', 'id': stage}]}}})
+    assert result['status'] == 'success', result
+    assert len(stages(app, pid)) == 3
+
+
+def test_a_project_is_deleted_with_its_stages_and_tasks(app):
+    pid = new_project()
+    send('Task', 'create', {'name': 'Survey', 'project_id': pid})
+    assert send('Project', 'delete', {}, id=pid)['status'] == 'success'
+    Task = app.models['Task']
+    with app.get_session() as s:
+        assert s.query(Task).count() == 0
+    assert stages(app, pid) == []

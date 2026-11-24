@@ -199,6 +199,24 @@ pages:
                 - name: country
                   width: 28%
 
+  # The person a user is (model.yaml), in the user form of `users`: the field
+  # joins the identity column of its Account tab, merged by name.
+  user_form:
+    content:
+      layout:
+        - id: sections
+          pages:
+            - id: account
+              layout:
+                - id: account_main
+                  columns:
+                    - id: identity
+                      fields:
+                        - name: partner_id
+                          label: Person
+                          help: The partner this user is, so that what is assigned to the person is theirs.
+                          width: 50%
+
 views:
 
   # The list of partners, which an application's lists take with $ref, each
