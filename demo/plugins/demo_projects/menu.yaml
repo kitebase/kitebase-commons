@@ -1,0 +1,9 @@
+# Work: the projects, their tasks on a board, and the tasks of whoever is
+# signed in.
+menu_items:
+  work:          { label: Work,          icon: folder-kanban, order: 30 }
+  my_tasks:      { label: My tasks,      icon: list-checks,   parent: work, order: 5,  action: stack_push, panel: my_tasks }
+  task_board:    { label: Task board,    icon: kanban,        parent: work, order: 10, action: stack_push, panel: task_board }
+  projects:      { label: Projects,      icon: folder-open,   parent: work, order: 20, action: stack_push, panel: project_list }
+  tasks:         { label: Tasks,         icon: list-todo,     parent: work, order: 30, action: stack_push, panel: task_list }
+  project_tags:  { label: Project tags,  icon: tags,          parent: work, order: 90, action: stack_push, panel: projecttag_list }

@@ -1,0 +1,302 @@
+# The pages of the projects. Menu-silent like the rest of the commons: where
+# the lists surface is the application's call. Lowercase `{model}_form`, so
+# each is the form its lists open.
+#
+# The tasks of a project are not a collection of its form: a task has a life
+# of its own (a board, a history, its own form), and its rules are judged on
+# a single write, not inside the tree of the project. The project's list shows
+# them under the project clicked.
+
+pages:
+
+  # The open projects, typical jobs left out: rules the user sees and may
+  # take away, to find a closed one again or a job to copy.
+  project_list:
+    title: Projects
+    help: The projects open and on hold. Click one to see its tasks below and its story on the right; take a rule away to see the closed ones and the typical jobs.
+    content:
+      $ref: views.project_table
+      rules:
+        - {field: state, op: in, value: [planned, active, on_hold]}
+        - {field: is_template, op: eq, value: false}
+    panels:
+      - id: tasks
+        pos: bottom
+        height: 320
+        trigger: { event: row_click, pass: [id] }
+        $ref: views.project_tasks
+      - id: activities
+        pos: right
+        width: 380
+        trigger: { event: row_click, pass: [id] }
+        type: plugin
+        component: activities.timeline
+        props:
+          model: Project
+
+  # Every task of every project, closed ones included
+  task_list:
+    title: Tasks
+    help: Every task of every project. Click one to see its story on the right; switch to the board to work stage by stage, one project at a time.
+    content:
+      $ref: views.task_table
+      source: &task_source
+        model: Task
+        joins:
+          - Project: {type: left, "on": "Task.project_id = Project.id"}
+          - TaskStage: {type: left, "on": "Task.stage_id = TaskStage.id"}
+          - Partner: {type: left, "on": "Task.assignee_id = Partner.id"}
+        order_by: [Project.name, TaskStage.sequence, sequence]
+    panels: &task_panels
+      - id: activities
+        pos: right
+        width: 380
+        trigger: { event: row_click, pass: [id] }
+        type: plugin
+        component: activities.timeline
+        props:
+          model: Task
+
+  # The tasks of the person signed in, in every project: the partner the
+  # user is (`User.partner_id`, in the login context). For a user linked to
+  # no partner the rule has no value, and like any empty rule it filters
+  # nothing: the list shows every task, with the rule there to be filled.
+  my_tasks:
+    title: My tasks
+    help: The tasks assigned to you, in every project. The ones done are here too; sort by due date to see what comes first.
+    content:
+      $ref: views.task_table
+      source: *task_source
+      rules:
+        - {field: assignee_id, op: eq, value: $ctx.partner_id}
+    panels: *task_panels
+
+  # One project at a time, its own stages as the columns
+  task_board:
+    title: Task board
+    help: The tasks of a project, one column per stage. Pick the project above the board; drag a card to move it, click it to see its story, double-click to open it.
+    content:
+      $ref: views.task_table
+      type: kanban
+      allow_views: [kanban, table]
+      source: *task_source
+    panels: *task_panels
+
+  # A project, its stages and its story. The stages are its own: added,
+  # renamed and moved here, numbered on save; a project saved with none gets
+  # the default ones (rules.py).
+  project_form:
+    title: Project
+    help: A piece of work and its stages. Its tasks are in the list of the projects and on the board; its activities are at the bottom.
+    content:
+      type: form
+      source:
+        model: Project
+        id: $props.id
+      layout:
+        - id: header
+          type: section
+          columns:
+            - id: main
+              fields:
+                - name: name
+                  width: 60%
+                - name: partner_id
+                  width: 40%
+                - name: manager_id
+                  width: 30%
+                - name: state
+                  width: 20%
+                - name: start_date
+                  width: 20%
+                - name: end_date
+                  width: 20%
+                - name: is_template
+                  width: 10%
+                - name: tags
+                  label: Tags
+                  width: 100%
+        - id: text
+          type: section
+          columns:
+            - id: main
+              fields:
+                - name: description
+        # In a tabs even alone: the hook another plugin needs to put a
+        # sibling beside them
+        - id: relations
+          type: tabs
+          pages:
+            - id: stages_tab
+              label: Stages
+              count: stages
+              layout:
+                - type: collection
+                  id: stages
+                  model: TaskStage
+                  fk: project_id
+                  sequence: sequence
+                  view:
+                    type: table
+                    columns:
+                      - field: name
+                        title: Stage
+                        width: 280
+                      - field: category
+                        title: Category
+                        width: 140
+                      - field: folded
+                        title: Folded
+            - id: activities_tab
+              label: Activities
+              layout:
+                - type: plugin
+                  component: activities.timeline
+
+  # The stage offered is one of the task's project (lookup.filters); rules.py
+  # refuses the others on every port.
+  task_form:
+    title: Task
+    help: A unit of work of a project. Its activities are at the bottom, notes included.
+    content:
+      type: form
+      source:
+        model: Task
+        id: $props.id
+      layout:
+        - id: task
+          type: section
+          columns:
+            - id: main
+              fields:
+                - name: name
+                  width: 60%
+                - name: project_id
+                  width: 40%
+                # Left empty, rules.py fills it: the first stage to do
+                - name: stage_id
+                  width: 25%
+                  required: false
+                  help: Where the task stands. Left empty, the first stage to do of its project.
+                  lookup:
+                    filters: {project_id: $record.project_id}
+                - name: assignee_id
+                  width: 35%
+                - name: due_date
+                  width: 20%
+                - name: priority
+                  widget: combobox
+                  choices:
+                    - { value: 0, label: Normal }
+                    - { value: 1, label: High }
+                  width: 20%
+                - name: estimate_hours
+                  width: 20%
+                - name: tags
+                  label: Tags
+                  width: 80%
+        - id: text
+          type: section
+          columns:
+            - id: main
+              fields:
+                - name: description
+        - id: relations
+          type: tabs
+          pages:
+            - id: activities_tab
+              label: Activities
+              layout:
+                - type: plugin
+                  component: activities.timeline
+
+views:
+
+  project_table:
+    type: table
+    source:
+      model: Project
+      joins:
+        - Partner: {type: left, "on": "Project.partner_id = Partner.id"}
+      order_by: [name]
+    columns:
+      - field: name
+        title: Project
+      - field: Partner.name as partner
+        title: Partner
+      - field: state
+        title: State
+        width: 120
+        tone:
+          values: { active: success, on_hold: warning, cancelled: danger }
+      - field: start_date
+        title: Start
+        width: 110
+      - field: end_date
+        title: Expected end
+        width: 120
+      - field: tags
+        title: Tags
+      - field: is_template
+        title: Typical job
+        width: 110
+
+  task_table:
+    type: table
+    allow_views: [table, kanban]
+    columns:
+      - field: name
+        title: Task
+      - field: Project.name as project
+        title: Project
+        width: 180
+      - field: TaskStage.name as stage
+        title: Stage
+        width: 130
+      - field: Partner.name as assignee
+        title: Assignee
+        width: 160
+      - field: due_date
+        title: Due
+        width: 110
+      - field: priority
+        title: Priority
+        width: 90
+        visible: false
+      - field: estimate_hours
+        title: Estimate (hours)
+        width: 130
+      - field: tags
+        title: Tags
+    card:
+      title: name
+      subtitle: assignee
+      details: [due_date, estimate_hours]
+
+  # The tasks of a project, under the projects
+  project_tasks:
+    type: table
+    source:
+      model: Task
+      joins:
+        - TaskStage: {type: left, "on": "Task.stage_id = TaskStage.id"}
+        - Partner: {type: left, "on": "Task.assignee_id = Partner.id"}
+      filters:
+        conditions:
+          - Task.project_id: ["=", "$trigger.id"]
+      order_by: [TaskStage.sequence, sequence]
+    # A task is added from the board, within its project, or from the list
+    navigator:
+      hide: [add]
+    columns:
+      - field: name
+        title: Task
+      - field: TaskStage.name as stage
+        title: Stage
+        width: 140
+      - field: Partner.name as assignee
+        title: Assignee
+        width: 180
+      - field: due_date
+        title: Due
+        width: 110

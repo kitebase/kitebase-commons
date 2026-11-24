@@ -1,0 +1,16 @@
+# Projects: who does what, by when, and how much time it took. A project has
+# tasks, which move through the stages of that project on a board; a stage is
+# the project's own, and its category (to do, in progress, done, cancelled) is
+# what every question across projects reads.
+#
+# A project is born empty, with the stages of the seed, or as a copy of
+# another: a typical job (`is_template`) is only a project worth copying.
+#
+# See README.md.
+name: projects
+version: 0.0.1
+description: Projects and their tasks, on a board of the project's own stages
+license: MIT
+author: "Claudio Driussi"
+url: https://claudiodriussi.it
+depends_on: [common, users, partners, activities, tags]

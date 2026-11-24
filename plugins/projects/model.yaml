@@ -1,0 +1,223 @@
+# A project organizes work; it is not an order or a contract, which are
+# documents. Who works is a partner (a person), since many who work never sign
+# in: the user signed in finds theirs through `User.partner_id`.
+
+tables:
+
+  Project:
+    name: projects
+    label: "Project"
+    help: |
+      A piece of work with its tasks: who does what, by when. A project for a
+      customer names its partner; an internal one does not.
+    tags: [master]
+    mixins: [TimeStamp]
+    # An activity on the project is in the history of its partner too
+    activities.follow: [partner_id]
+    columns:
+      - name: id
+        type: ID
+
+      - name: name
+        type: Description
+        nullable: False
+        label: "Project"
+
+      - name: partner_id
+        label: "Partner"
+        help: "The customer it is done for; empty for an internal project."
+        foreign_key:
+          target: Partner.id
+          relation: partner
+          backref: projects
+
+      - name: manager_id
+        label: "Manager"
+        help: "Who answers for it."
+        foreign_key:
+          target: Partner.id
+          relation: manager
+          backref: managed_projects
+
+      # A closed set owned by the code: the default lists show the open ones,
+      # and a cancelled project is not a finished one, in the figures as in the
+      # choice of a job to copy. Any state can follow any other.
+      - name: state
+        type: ShortStr
+        default: "'planned'"
+        nullable: False
+        label: "State"
+        choices:
+          - { value: planned, label: Planned }
+          - { value: active, label: In progress }
+          - { value: on_hold, label: On hold }
+          - { value: done, label: Done }
+          - { value: cancelled, label: Cancelled }
+
+      - name: start_date
+        type: Date
+        label: "Start"
+
+      - name: end_date
+        type: Date
+        label: "Expected end"
+
+      # Only a filter: a typical job is copied as any project is, and a real
+      # one marked so keeps its state, hours and history.
+      - name: is_template
+        type: Boolean
+        default: false
+        nullable: False
+        label: "Typical job"
+        help: "Offered first when a new project starts as a copy; left out of the open projects."
+
+      - name: description
+        type: Markdown
+        label: "Description"
+
+  TaskStage:
+    name: project_task_stages
+    label: "Task stage"
+    help: |
+      A column of a project's board. The stages are the project's own and may
+      change along the way; their category is what is read across projects.
+    tags: [reference]
+    columns:
+      - name: id
+        type: ID
+
+      - name: project_id
+        label: "Project"
+        nullable: False
+        foreign_key:
+          target: Project.id
+          owned: true
+          relation: project
+          backref: stages
+
+      - name: name
+        type: Description
+        nullable: False
+        label: "Name"
+
+      - name: sequence
+        type: Sequence
+        doc: The place of the stage in its project, the board's columns from left to right.
+
+      # Owned by the code, like a project's state: "my open tasks in every
+      # project" reads the category, not the names each project chose.
+      - name: category
+        type: ShortStr
+        default: "'todo'"
+        nullable: False
+        label: "Category"
+        choices:
+          - { value: todo, label: To do }
+          - { value: active, label: In progress }
+          - { value: done, label: Done }
+          - { value: cancelled, label: Cancelled }
+
+      - name: folded
+        type: Boolean
+        default: false
+        nullable: False
+        label: "Folded"
+        help: "The column starts folded on the board."
+
+  Task:
+    name: project_tasks
+    label: "Task"
+    help: |
+      A unit of work of a project, in one of its stages. A task too large for
+      one person and one stage is a project of its own.
+    tags: [document]
+    mixins: [TimeStamp]
+    # An activity on the task is in the history of its project, and from
+    # there of its partner
+    activities.follow: [project_id]
+    # The board: the stages of one project at a time, in their order
+    state:
+      column: stage_id
+      within: project_id
+      order: sequence
+      folded: folded
+    columns:
+      - name: id
+        type: ID
+
+      - name: name
+        type: Description
+        nullable: False
+        label: "Task"
+
+      - name: project_id
+        label: "Project"
+        nullable: False
+        foreign_key:
+          target: Project.id
+          owned: true
+          relation: project
+          backref: tasks
+
+      - name: stage_id
+        label: "Stage"
+        nullable: False
+        foreign_key:
+          target: TaskStage.id
+          relation: stage
+          backref: tasks
+
+      - name: assignee_id
+        label: "Assignee"
+        help: "Who does it: a person, who may or may not sign in."
+        foreign_key:
+          target: Partner.id
+          relation: assignee
+          backref: assigned_tasks
+
+      - name: due_date
+        type: Date
+        label: "Due"
+
+      - name: priority
+        type: Integer
+        default: 0
+        nullable: False
+        label: "Priority"
+        help: "0 normal, 1 high."
+
+      - name: estimate_hours
+        type: Quantity
+        label: "Estimate (hours)"
+
+      - name: description
+        type: Markdown
+        label: "Description"
+
+      - name: sequence
+        type: Sequence
+        doc: The order of the task in its column of the board.
+
+    indexes:
+      - name: idx_task_board
+        columns: [project_id, stage_id]
+        description: "The board of a project, stage by stage"
+
+  # One vocabulary for projects and tasks: "backend" or "urgent" mean the same
+  # on both, and one filter finds them on either.
+  ProjectTag:
+    name: project_tags
+    label: "Project tag"
+    mixins: [TagVocabulary]
+
+  ProjectTagLink:
+    name: project_tag_links
+    many_to_many:
+      target1: { table: Project.id, column: project_id, collection: tags, field: true }
+      target2: { table: ProjectTag.id, column: tag_id }
+
+  TaskTagLink:
+    name: project_task_tag_links
+    many_to_many:
+      target1: { table: Task.id, column: task_id, collection: tags, field: true }
+      target2: { table: ProjectTag.id, column: tag_id }

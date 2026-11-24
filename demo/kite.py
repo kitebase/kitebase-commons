@@ -86,6 +86,7 @@ def seed(app, model):
 
         session.flush()
         seed_crm(session, model)
+        seed_projects(session, model)
         session.commit()
 
 
@@ -116,6 +117,54 @@ def seed_crm(session, model):
         session.add(model.Opportunity(
             name=name, partner_id=by_name[partner], pipeline_id=pipeline,
             stage_id=stage.id, amount=amount, user_id=admin.id if admin else None))
+
+
+def seed_projects(session, model):
+    """A few projects to look at: one for a customer, one internal, and a
+    typical job to copy. Admin is a person too, so that "My tasks" shows
+    something."""
+    if session.query(model.Project).first():
+        return
+    from projects.api import add_stages  # type: ignore
+
+    admin = session.query(model.User).filter_by(username="admin").first()
+    if admin is not None and admin.partner_id is None:
+        me = model.Partner(kind="person", name="Carter, Alex", city="York",
+                           email="alex@example.com")
+        session.add(me)
+        session.flush()
+        admin.partner_id = me.id
+    people = {p.name: p.id for p in session.query(model.Partner)
+              .filter(model.Partner.kind == "person")}
+    northwind = session.query(model.Partner).filter_by(name="Northwind Trading").first()
+
+    def project(name, state, partner=None, template=False, tasks=()):
+        row = model.Project(name=name, state=state, is_template=template,
+                            partner_id=partner.id if partner else None,
+                            manager_id=people.get("Carter, Alex"))
+        session.add(row)
+        session.flush()
+        add_stages(session, row.id)
+        stages = session.query(model.TaskStage).filter_by(project_id=row.id) \
+            .order_by(model.TaskStage.sequence).all()
+        for place, (task, stage, who, estimate) in enumerate(tasks, 1):
+            session.add(model.Task(name=task, project_id=row.id, stage_id=stages[stage].id,
+                                   assignee_id=people.get(who), estimate_hours=estimate,
+                                   sequence=place))
+
+    project("Warehouse racking install", "active", northwind, tasks=(
+        ("Survey of the warehouse", 3, "Ross, Mark", 4),
+        ("Layout drawing", 1, "Carter, Alex", 6),
+        ("Order the uprights", 0, "Carter, Alex", 1),
+        ("Install and test", 0, None, 16)))
+    project("Move to the new office", "planned", tasks=(
+        ("Choose the movers", 0, "Carter, Alex", 2),
+        ("Network and phones", 0, None, 8)))
+    project("Standard racking install", "planned", template=True, tasks=(
+        ("Survey of the site", 0, None, 4),
+        ("Layout drawing", 0, None, 6),
+        ("Order the material", 0, None, 1),
+        ("Install and test", 0, None, 16)))
 
 
 def main():

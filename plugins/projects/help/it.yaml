@@ -1,0 +1,79 @@
+# Translations of the guide, kept in step with the English by `kitebase sync-help`.
+# Translate the value under the language; an empty one shows the English.
+# `en_old` is the English the translation was made on: review it, then remove the line.
+
+tables.Project:
+  en: |-
+    A piece of work with its tasks: who does what, by when. A project for a
+    customer names its partner; an internal one does not.
+  it: |-
+    Un lavoro con i suoi compiti: chi fa cosa, entro quando. Un progetto per un
+    cliente ne indica il partner; uno interno no.
+
+tables.Project.columns.partner_id:
+  en: The customer it is done for; empty for an internal project.
+  it: Il cliente per cui si fa; vuoto per un progetto interno.
+
+tables.Project.columns.manager_id:
+  en: Who answers for it.
+  it: Chi ne risponde.
+
+tables.Project.columns.is_template:
+  en: Offered first when a new project starts as a copy; left out of the open projects.
+  it: Proposto per primo quando un progetto nasce come copia; escluso dai progetti aperti.
+
+tables.TaskStage:
+  en: |-
+    A column of a project's board. The stages are the project's own and may
+    change along the way; their category is what is read across projects.
+  it: |-
+    Una colonna della bacheca di un progetto. Gli stadi sono del progetto e possono
+    cambiare strada facendo; fra un progetto e l'altro si legge la loro categoria.
+
+tables.TaskStage.columns.folded:
+  en: The column starts folded on the board.
+  it: La colonna parte chiusa sulla bacheca.
+
+tables.Task:
+  en: |-
+    A unit of work of a project, in one of its stages. A task too large for
+    one person and one stage is a project of its own.
+  it: |-
+    Un'unità di lavoro di un progetto, in uno dei suoi stadi. Un compito troppo
+    grande per una persona e uno stadio è un progetto a sé.
+
+tables.Task.columns.assignee_id:
+  en: 'Who does it: a person, who may or may not sign in.'
+  it: 'Chi lo fa: una persona, che può avere o no un accesso.'
+
+tables.Task.columns.priority:
+  en: 0 normal, 1 high.
+  it: 0 normale, 1 alta.
+
+pages.project_list:
+  en: The projects open and on hold. Click one to see its tasks below and its story on the right; take a rule away to see the closed ones and the typical jobs.
+  it: I progetti aperti e sospesi. Cliccane uno per vederne i compiti sotto e la storia a destra; togli una regola per vedere i chiusi e i lavori tipici.
+
+pages.task_list:
+  en: Every task of every project. Click one to see its story on the right; switch to the board to work stage by stage, one project at a time.
+  it: Tutti i compiti di tutti i progetti. Cliccane uno per vederne la storia a destra; passa alla bacheca per lavorare stadio per stadio, un progetto alla volta.
+
+pages.my_tasks:
+  en: The tasks assigned to you, in every project. The ones done are here too; sort by due date to see what comes first.
+  it: I compiti assegnati a te, in tutti i progetti. Ci sono anche quelli fatti; ordina per scadenza per vedere cosa viene prima.
+
+pages.task_board:
+  en: The tasks of a project, one column per stage. Pick the project above the board; drag a card to move it, click it to see its story, double-click to open it.
+  it: I compiti di un progetto, una colonna per stadio. Scegli il progetto sopra la bacheca; trascina una scheda per spostarla, cliccala per vederne la storia, doppio clic per aprirla.
+
+pages.project_form:
+  en: A piece of work and its stages. Its tasks are in the list of the projects and on the board; its activities are at the bottom.
+  it: Un lavoro e i suoi stadi. I compiti sono nella lista dei progetti e sulla bacheca; le attività in fondo.
+
+pages.task_form:
+  en: A unit of work of a project. Its activities are at the bottom, notes included.
+  it: Un'unità di lavoro di un progetto. Le attività sono in fondo, note comprese.
+
+pages.task_form.content.layout.task.columns.main.fields.stage_id:
+  en: Where the task stands. Left empty, the first stage to do of its project.
+  it: Dove sta il compito. Vuoto, il primo stadio da fare del suo progetto.

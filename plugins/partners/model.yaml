@@ -227,3 +227,23 @@ tables:
         default: 0
         nullable: false
         help: "Display order"
+
+  # The person a user is. Here and not in `users`, which knows nothing of
+  # partners: an application of users alone keeps working. Whatever counts
+  # people at work (the assignee of a task, who logged the hours) points at a
+  # partner, since many who work never sign in; "mine" is then the partner of
+  # the user signed in, which user.py puts in the login context.
+  #
+  # Unique, since a person has one login at most; empty for a user that is no
+  # one (an administrator, a service account). Deleting the partner empties it,
+  # which is what a foreign key that owns nothing does.
+  User:
+    columns:
+      - name: partner_id
+        label: "Person"
+        help: "The partner this user is, so that what is assigned to the person is theirs."
+        unique: true
+        foreign_key:
+          target: Partner.id
+          relation: partner
+          backref: users

@@ -1,0 +1,9 @@
+# The projects in the demo: the projects plugin on the demo's partners, with
+# the menu that surfaces it. The plugin is menu-silent like the rest of the
+# commons.
+name: demo_projects
+version: 0.0.1
+description: Projects and tasks on the partners of the demo, through the projects plugin
+license: MIT
+author: "Claudio Driussi"
+depends_on: [demo_ui, projects]
