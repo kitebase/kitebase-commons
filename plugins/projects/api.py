@@ -58,6 +58,31 @@ def first_stage(session: Any, project_id: Any) -> Optional[int]:
     return todo if todo is not None else (rows[0][0] if rows else None)
 
 
+def copy_tasks(session: Any, source_id: Any, target_id: Any) -> int:
+    """Copy the tasks of a project into another, all in the target's first
+    stage to do: a copy starts the work again. Name, assignee, priority,
+    estimate, description and tags travel; due dates, stages and hours do
+    not. Returns how many were copied."""
+    app = kitebase.utils.get_app()
+    Task, TaskStage, Link = app.models['Task'], app.models['TaskStage'], app.models['TaskTagLink']
+    stage = first_stage(session, target_id)
+    if stage is None:
+        return 0
+    tasks = (session.query(Task).outerjoin(TaskStage, Task.stage_id == TaskStage.id)
+             .filter(Task.project_id == source_id)
+             .order_by(TaskStage.sequence, Task.sequence, Task.id).all())
+    for n, task in enumerate(tasks, start=1):
+        copy = Task(name=task.name, project_id=target_id, stage_id=stage,
+                    assignee_id=task.assignee_id, priority=task.priority,
+                    estimate_hours=task.estimate_hours, description=task.description,
+                    sequence=n)
+        session.add(copy)
+        session.flush()
+        for link in session.query(Link).filter(Link.task_id == task.id):
+            session.add(Link(task_id=copy.id, tag_id=link.tag_id))
+    return len(tasks)
+
+
 def stage_project(session: Any, stage_id: Any) -> Optional[int]:
     """The project a stage belongs to; None for a stage that is not there."""
     TaskStage = kitebase.utils.get_app().models['TaskStage']

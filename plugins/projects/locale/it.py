@@ -75,4 +75,13 @@ register_translations('it', {
     'Select a task or a project first':  'Scegli prima un compito o un progetto',
     'Hours are logged on a task or a project, not on {model}':
         'Le ore si registrano su un compito o un progetto, non su {model}',
+    # Duplicating
+    'Copied from':              'Copiato da',
+    'Tasks to copy':            'Compiti da copiare',
+    'Duplicate':                'Duplica',
+    'Copy the tasks':           'Copia i compiti',
+    'Select a project first':   'Scegli prima un progetto',
+    'This project is not a copy of another':  'Questo progetto non è la copia di un altro',
+    'This project has tasks already':  'Questo progetto ha già dei compiti',
+    '{count} tasks copied':     'Compiti copiati: {count}',
 })

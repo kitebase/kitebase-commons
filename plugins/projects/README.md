@@ -70,6 +70,16 @@ another project too is how two pieces of work refer to each other.
   on a project, `spent_hours` and `is_open` on a task. "My tasks" shows the
   open ones through `is_open`.
 
+## Duplicating
+
+"Duplicate" on the projects opens a copy of the project and its stages, to
+finish and save: planned, with no dates, not a typical job. The copy records
+its origin in `copied_from_id`. Its tasks are taken afterwards, when wanted:
+"Copy the tasks" shows on a copy that has none while its origin has some
+(`tasks_to_copy`, read by the command's `when`), and puts them all in the
+first stage to do, with assignee, estimate, description and tags, without
+due dates. Hours and history stay with the origin.
+
 ## The pages
 
 - `project_list`: the open projects, with the tasks of the one clicked below
@@ -86,9 +96,10 @@ is written.
 ## From code
 
 ```python
-from projects.api import add_stages, first_stage, open_tasks
+from projects.api import add_stages, copy_tasks, first_stage, open_tasks
 
 add_stages(session, project_id, [("Drafting", "active"), ("Granted", "done")])
+copy_tasks(session, source_id, project_id)
 ```
 
 The functions check no permission: the caller answers for what it writes.

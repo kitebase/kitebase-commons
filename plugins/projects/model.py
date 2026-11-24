@@ -3,7 +3,7 @@ list shows them like any column, and there is nothing to keep in step.
 
 This module is a mixin of the generated model, which defines the tables.
 """
-from sqlalchemy import func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import object_session
 
@@ -27,7 +27,8 @@ class _Read:
 
 
 class Project(_Read):
-    """The tasks still open and the hours spent on the project."""
+    """The tasks still open, the hours spent on the project, and the tasks a
+    copy may take from its origin."""
 
     @hybrid_property
     def open_tasks(self):
@@ -51,6 +52,21 @@ class Project(_Read):
         return (select(func.coalesce(func.sum(TimeEntry.hours), 0))
                 .where(TimeEntry.project_id == cls.id)
                 .correlate(cls).scalar_subquery())
+
+
+    @hybrid_property
+    def tasks_to_copy(self):
+        return self._read('tasks_to_copy')
+
+    @tasks_to_copy.expression
+    def tasks_to_copy(cls):
+        # The tasks of the origin, while the copy has none of its own
+        (Task,) = _models('Task')
+        own = select(func.count(Task.id)).where(Task.project_id == cls.id) \
+            .correlate(cls).scalar_subquery()
+        origin = select(func.count(Task.id)).where(Task.project_id == cls.copied_from_id) \
+            .correlate(cls).scalar_subquery()
+        return case((and_(cls.copied_from_id.is_not(None), own == 0), origin), else_=0)
 
 
 class Task(_Read):

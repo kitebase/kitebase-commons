@@ -196,6 +196,70 @@ def test_a_task_moved_is_a_line_of_its_history_and_of_its_project(app):
     assert reached == {('Task', 'owner'), ('Project', 'follow')}
 
 
+# -- Duplicating -----------------------------------------------------------------
+
+def duplicate_project(project_id):
+    """The draft "Duplicate" opens, saved as the form would save it."""
+    result = CommandDispatcher().send({'operation': 'duplicate', 'parameters': {
+        'page': 'project_form', 'id': project_id, 'confirm': False}})
+    draft = result['data']['draft']
+    root = {'op': 'create', 'id': -1, 'values': draft['values'], 'children': {
+        cid: [{'op': 'create', 'id': -(i + 2 + 10 * n), 'values': row['values']}
+              for i, row in enumerate(rows)]
+        for n, (cid, rows) in enumerate(draft['children'].items())}}
+    saved = save_tree({'page': 'project_form', 'root': root})
+    assert saved['status'] == 'success', saved
+    return draft, saved['data']['id']
+
+
+def test_a_copy_starts_over_and_remembers_its_origin(app):
+    pid = new_project('Racking', state='done', is_template=True, start_date='2026-01-10')
+    draft, copy = duplicate_project(pid)
+    assert draft['values']['copied_from_id'] == pid
+    Project = app.models['Project']
+    with app.get_session() as s:
+        row = s.get(Project, copy)
+        assert (row.state, row.start_date, row.is_template, row.copied_from_id) == \
+            ('planned', None, False, pid)
+    # the stages travel, the tasks do not
+    assert [(n, c) for _, n, c in stages(app, copy)] == [(n, c) for _, n, c in stages(app, pid)]
+    Task = app.models['Task']
+    with app.get_session() as s:
+        assert s.query(Task).filter_by(project_id=copy).count() == 0
+
+
+def test_the_tasks_of_the_origin_are_copied_on_request(app):
+    signed_in(partner_id=3)
+    pid = new_project('Racking')
+    ids = [i for i, _, _ in stages(app, pid)]
+    send('Task', 'create', {'name': 'Survey', 'project_id': pid, 'stage_id': ids[2],
+                            'assignee_id': 3, 'estimate_hours': 4, 'due_date': '2026-12-01'})
+    send('Task', 'create', {'name': 'Drawing', 'project_id': pid})
+    log(project_id=pid, hours=2)
+    _, copy = duplicate_project(pid)
+
+    Project, Task = app.models['Project'], app.models['Task']
+    with app.get_session() as s:
+        assert s.get(Project, copy).tasks_to_copy == 2
+        assert s.get(Project, pid).tasks_to_copy == 0          # not a copy
+
+    result = CommandDispatcher().send({'operation': 'projects_copy_tasks', 'parameters': {'id': copy}})
+    assert result['status'] == 'success', result
+    first = stages(app, copy)[0][0]
+    with app.get_session() as s:
+        copied = s.query(Task).filter_by(project_id=copy).order_by(Task.sequence).all()
+        assert [(t.name, t.stage_id, t.assignee_id, t.due_date) for t in copied] == \
+            [('Drawing', first, None, None), ('Survey', first, 3, None)]
+        assert float(copied[1].estimate_hours) == 4.0
+        assert float(s.get(Project, copy).spent_hours) == 0     # the hours stay home
+        assert s.get(Project, copy).tasks_to_copy == 0
+
+    again = CommandDispatcher().send({'operation': 'projects_copy_tasks', 'parameters': {'id': copy}})
+    assert again['status'] == 'error' and 'tasks already' in again['message']
+    alone = CommandDispatcher().send({'operation': 'projects_copy_tasks', 'parameters': {'id': pid}})
+    assert alone['status'] == 'error' and 'not a copy' in alone['message']
+
+
 # -- Hours ----------------------------------------------------------------------
 
 def signed_in(**ctx):

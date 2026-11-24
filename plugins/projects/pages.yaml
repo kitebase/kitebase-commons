@@ -119,6 +119,9 @@ pages:
                   width: 20%
                 - name: is_template
                   width: 10%
+                - name: copied_from_id
+                  width: 40%
+                  readonly: true
                 - name: tags
                   label: Tags
                   width: 100%
@@ -360,8 +363,26 @@ views:
       - field: is_template
         title: Typical job
         width: 110
+      # What the command "Copy the tasks" reads
+      - field: tasks_to_copy
+        title: Tasks to copy
+        visible: false
     navigator:
       commands:
+        - id: duplicate
+          label: Duplicate
+          help: Opens a new project copied from this one, with its stages, to finish and save. Its tasks are taken afterwards, with "Copy the tasks".
+          icon: copy
+          scope: row
+          endpoint: duplicate
+          params: { page: project_form }
+        - id: copy_tasks
+          label: Copy the tasks
+          help: Copies the tasks of the project this one was duplicated from, all in the first stage to do. Shown while the copy has no tasks of its own.
+          icon: list-plus
+          scope: row
+          endpoint: projects_copy_tasks
+          when: tasks_to_copy
         - id: log_time
           label: Log time
           help: Records hours spent on this project as a whole. Hours on one of its tasks are logged from the task.

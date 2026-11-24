@@ -82,6 +82,19 @@ tables:
         label: "Typical job"
         help: "Offered first when a new project starts as a copy; left out of the open projects."
 
+      # The project this one was copied from, written by "Duplicate": where a
+      # piece of work came from, and where its tasks can be taken from
+      - name: copied_from_id
+        label: "Copied from"
+        help: "The project this one was duplicated from."
+        duplicate: false
+        editable: false
+        foreign_key:
+          target: Project.id
+          relation: copied_from
+          backref: copies
+          owned: false
+
       - name: description
         type: Markdown
         label: "Description"
@@ -99,6 +112,13 @@ tables:
         virtual: true
         editable: false
         label: "Hours spent"
+
+      - name: tasks_to_copy
+        type: Integer
+        virtual: true
+        editable: false
+        label: "Tasks to copy"
+        help: "The tasks of the project copied from, while this one has none."
 
   TaskStage:
     name: project_task_stages
