@@ -38,12 +38,39 @@ An activity on a task reaches its project, and from there its partner
 "From To do to In review" (`activities.moves`). A note on a task is an activity; a note linked to
 another project too is how two pieces of work refer to each other.
 
+## The hours
+
+- **TimeEntry**: hours spent on a project, on one of its tasks or on the
+  project as a whole, by a person, on a day. A start and an end when they are
+  known, kept as instants for the queries but asked as times of day: the save
+  puts them on the date of the row, an end before the start on the next
+  morning (22:00 to 02:30 is four and a half hours, and the row keeps its
+  date). The hours are the datum, and may be less than the interval (a pause).
+  Kept as decimals with two places (the type `Hours`): rounding to the half hour
+  is a rule of the invoice, not of the record. `source` and `source_ref` say who
+  wrote a row that was not typed (a plugin, a bridge to a system that records
+  time) and the datum it came from.
+- The rules: the project of the task named, the person of the user writing
+  when none is named, the hours between start and end when they are left
+  empty; hours longer than the interval are said, not refused. A project with
+  hours is not deleted: it is cancelled.
+- In the form, leaving the start or the end asks the server for the hours
+  (`on_change`, endpoint `projects_hours`): the same function the save uses.
+- "Log time" on the tasks (and on the projects, for hours on the project as a
+  whole) opens the form already filled.
+- The form of a task lists its hours in a tab, read only: they are written
+  in their own form, whose rules a tree does not judge yet.
+- Computed in the query of a list (`model.py`): `open_tasks` and `spent_hours`
+  on a project, `spent_hours` and `is_open` on a task. "My tasks" shows the
+  open ones through `is_open`.
+
 ## The pages
 
 - `project_list`: the open projects, with the tasks of the one clicked below
   and its history on the right;
 - `task_list`, `my_tasks` and `task_board`, the board of one project at a time;
-- `project_form`, with its stages, and `task_form`.
+- `time_list` (the timesheet) and `my_time`;
+- `project_form`, with its stages, `task_form` and `timeentry_form`.
 
 The tasks are not a collection of the project's form: a task has a board, a
 history and a form of its own, and its rules are judged on a single write.

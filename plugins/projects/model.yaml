@@ -2,6 +2,17 @@
 # documents. Who works is a partner (a person), since many who work never sign
 # in: the user signed in finds theirs through `User.partner_id`.
 
+types:
+
+  # Hours as a decimal: 1:30 is 1.5, since sums, hours by rate and spent
+  # against estimated are computed on it. Two decimals are 36 seconds. Kept as
+  # spent: rounding to the half hour is a rule of the invoice, not of the
+  # record. Here until a second plugin counts hours; then it moves to common.
+  Hours:
+    base: Numeric
+    precision: 8
+    scale: 2
+
 tables:
 
   Project:
@@ -74,6 +85,20 @@ tables:
       - name: description
         type: Markdown
         label: "Description"
+
+      # Computed in the query that loads the list (model.py)
+      - name: open_tasks
+        type: Integer
+        virtual: true
+        editable: false
+        label: "Open tasks"
+        help: "The tasks in a stage still to do or in progress."
+
+      - name: spent_hours
+        type: Hours
+        virtual: true
+        editable: false
+        label: "Hours spent"
 
   TaskStage:
     name: project_task_stages
@@ -187,7 +212,7 @@ tables:
         help: "0 normal, 1 high."
 
       - name: estimate_hours
-        type: Quantity
+        type: Hours
         label: "Estimate (hours)"
 
       - name: description
@@ -198,10 +223,129 @@ tables:
         type: Sequence
         doc: The order of the task in its column of the board.
 
+      # Computed in the query that loads the list (model.py)
+      - name: spent_hours
+        type: Hours
+        virtual: true
+        editable: false
+        label: "Hours spent"
+
+      # Whether its stage is one still to do or in progress: what "my tasks"
+      # filters on, without reading the stages of every project.
+      - name: is_open
+        type: Boolean
+        virtual: true
+        editable: false
+        label: "Still open"
+
     indexes:
       - name: idx_task_board
         columns: [project_id, stage_id]
         description: "The board of a project, stage by stage"
+
+  # The hours spent: what was done, not how it was measured. A row is typed
+  # by a person, or written by code: from an activity with its start and end,
+  # or by a bridge to a system that records time. `source` names who wrote it
+  # (empty when typed) and `source_ref` the datum it came from, so a
+  # correction can be followed back.
+  #
+  # Not owned by the project: a project with hours is not deleted (the
+  # database would refuse, and says why); it is cancelled. A task deleted
+  # leaves its hours on the project.
+  TimeEntry:
+    name: project_time_entries
+    label: "Time entry"
+    help: |
+      Hours spent on a project, on one of its tasks or on the project as a
+      whole, by a person.
+    tags: [document]
+    mixins: [TimeStamp]
+    columns:
+      - name: id
+        type: ID
+
+      # Filled from the task when one is named (rules.py)
+      - name: project_id
+        label: "Project"
+        nullable: False
+        foreign_key:
+          target: Project.id
+          relation: project
+          backref: time_entries
+
+      # Not a part of the task: deleted, it leaves its hours on the project
+      - name: task_id
+        label: "Task"
+        foreign_key:
+          target: Task.id
+          owned: false
+          relation: task
+          backref: time_entries
+
+      # Left empty, the person of the user writing it (rules.py)
+      - name: worker_id
+        label: "Worked by"
+        help: "A person, who may or may not sign in. Left empty, you."
+        nullable: False
+        foreign_key:
+          target: Partner.id
+          relation: worker
+          backref: time_entries
+
+      - name: date
+        type: Date
+        nullable: False
+        default: $op_date
+        label: "Date"
+
+      # When the work started and ended, as instants for the queries. A form
+      # asks the time alone (widget `time`); the save sets the day from
+      # `date`, an end before the start being the next morning (22:00 to 02:00
+      # is four hours), and the row keeps the day it began. Known or not:
+      # hours alone will do.
+      - name: start_at
+        type: DateTime
+        label: "Start"
+
+      - name: end_at
+        type: DateTime
+        label: "End"
+
+      # Left empty with a start and an end, their difference (rules.py)
+      - name: hours
+        type: Hours
+        nullable: False
+        label: "Hours"
+
+      - name: billable
+        type: Boolean
+        default: true
+        nullable: False
+        label: "Billable"
+
+      - name: note
+        type: Text
+        label: "Note"
+
+      # Who wrote the row when it was not typed (a plugin, a bridge), and the
+      # datum it came from
+      - name: source
+        type: ShortStr
+        label: "Source"
+        editable: false
+
+      - name: source_ref
+        type: String
+        label: "Source reference"
+        editable: false
+
+    indexes:
+      - name: idx_time_project
+        columns: [project_id, date]
+        description: "The hours of a project, by day"
+      - name: idx_time_worker
+        columns: [worker_id, date]
+        description: "The hours of a person, by day"
 
   # One vocabulary for projects and tasks: "backend" or "urgent" mean the same
   # on both, and one filter finds them on either.

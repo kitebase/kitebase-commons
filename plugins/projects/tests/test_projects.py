@@ -18,9 +18,16 @@ from kitebase.endpoint_tree import save_tree
 from kitebase.endpoints import CommandDispatcher
 
 
+# Who calls: nobody, or the user signed_in() names
+CALLER = {}
+
+
 def send(table, method, data, **more):
-    return CommandDispatcher().send({'operation': 'db', 'parameters': {
-        'table': table, 'method': method, 'data': data, **more}})
+    message = {'operation': 'db', 'parameters': {
+        'table': table, 'method': method, 'data': data, **more}}
+    if CALLER:
+        message['context'] = dict(CALLER)
+    return CommandDispatcher().send(message)
 
 
 def new_project(name='Racking', **data):
@@ -187,3 +194,136 @@ def test_a_task_moved_is_a_line_of_its_history_and_of_its_project(app):
         assert lines == ['From To do to In review']
         reached = {(l.model, l.role) for l in s.query(Link)}
     assert reached == {('Task', 'owner'), ('Project', 'follow')}
+
+
+# -- Hours ----------------------------------------------------------------------
+
+def signed_in(**ctx):
+    """Calls from now on come from user 7, with these fields in the context."""
+    import kitebase.context
+    CALLER.clear()
+    CALLER.update({'id': 7, 'username': 'tester', **ctx})
+    kitebase.context.replace(dict(CALLER))
+
+
+def log(**data):
+    return send('TimeEntry', 'create', {'date': '2026-11-24', **data})
+
+
+def entry(app, entry_id):
+    TimeEntry = app.models['TimeEntry']
+    with app.get_session() as s:
+        row = s.get(TimeEntry, entry_id)
+        s.expunge(row)
+        return row
+
+
+def test_hours_on_a_task_go_to_its_project_by_the_person_signed_in(app):
+    signed_in(partner_id=3)
+    pid = new_project()
+    tid = send('Task', 'create', {'name': 'Survey', 'project_id': pid})['data']['id']
+    result = log(task_id=tid, hours=2)
+    assert result['status'] == 'success', result.get('message')
+    row = entry(app, result['data']['id'])
+    assert (row.project_id, row.worker_id, float(row.hours)) == (pid, 3, 2.0)
+
+
+def test_with_a_start_and_an_end_the_hours_are_computed(app):
+    signed_in(partner_id=3)
+    pid = new_project()
+    result = log(project_id=pid, start_at='09:00', end_at='10:20')
+    assert result['status'] == 'success', result
+    assert float(entry(app, result['data']['id']).hours) == 1.33
+
+
+def test_hours_written_over_a_range_stay_and_more_than_it_are_said(app):
+    signed_in(partner_id=3)
+    pid = new_project()
+    kept = log(project_id=pid, start_at='09:00', end_at='13:00', hours=3.5)
+    assert float(entry(app, kept['data']['id']).hours) == 3.5
+    longer = log(project_id=pid, start_at='09:00', end_at='10:00', hours=2)
+    assert longer['status'] == 'success'
+    assert any('more than the time' in line for line in infos(longer)), longer
+
+
+def test_an_end_before_the_start_is_the_next_day_and_the_date_stays(app):
+    signed_in(partner_id=3)
+    pid = new_project()
+    result = log(project_id=pid, start_at='22:00', end_at='02:30')
+    assert result['status'] == 'success', result.get('message')
+    row = entry(app, result['data']['id'])
+    assert float(row.hours) == 4.5 and str(row.date) == '2026-11-24'
+    assert (str(row.start_at), str(row.end_at)) == ('2026-11-24 22:00:00', '2026-11-25 02:30:00')
+
+
+def test_the_instants_take_the_day_of_the_row_not_the_one_the_form_put(app):
+    signed_in(partner_id=3)
+    pid = new_project()
+    # The form puts the operational date; the row is for the day before
+    result = log(project_id=pid, date='2026-11-23',
+                 start_at='2026-11-24T09:00:00', end_at='2026-11-24T12:00:00')
+    row = entry(app, result['data']['id'])
+    assert (str(row.start_at), str(row.end_at), float(row.hours)) == \
+        ('2026-11-23 09:00:00', '2026-11-23 12:00:00', 3.0)
+
+
+def test_hours_are_refused_without_a_number_or_a_person(app):
+    pid = new_project()
+    signed_in()                                     # a user that is no one
+    assert 'Who worked' in log(project_id=pid, hours=1)['message']
+    signed_in(partner_id=3)
+    assert 'How many hours' in log(project_id=pid)['message']
+    assert 'not a time of day' in log(project_id=pid, start_at='9 o clock',
+                                      end_at='10:00')['message']
+    assert 'more than zero' in log(project_id=pid, hours=0)['message']
+
+
+def test_a_task_of_another_project_is_refused(app):
+    signed_in(partner_id=3)
+    one, other = new_project('One'), new_project('Other')
+    tid = send('Task', 'create', {'name': 'Survey', 'project_id': one})['data']['id']
+    assert 'not one of the project' in log(project_id=other, task_id=tid, hours=1)['message']
+
+
+def test_a_project_with_hours_is_not_deleted(app):
+    signed_in(partner_id=3)
+    pid = new_project()
+    log(project_id=pid, hours=1)
+    refused = send('Project', 'delete', {}, id=pid)
+    assert refused['status'] == 'error' and 'Time entry (1)' in refused['message']
+
+
+def test_the_form_asks_the_hours_of_a_range(app):
+    from projects.endpoints import projects_hours
+    assert projects_hours({'start_at': '2026-11-24T09:00', 'end_at': '2026-11-24T10:30'})['data'] == {'hours': 1.5}
+    assert projects_hours({'start_at': '23:00', 'end_at': '01:00'})['data'] == {'hours': 2.0}
+    assert projects_hours({'start_at': '09:00', 'end_at': None})['data'] == {}
+
+
+def test_log_time_opens_the_form_on_the_task(app):
+    from projects.endpoints import projects_log_time
+    signed_in(partner_id=3)
+    pid = new_project()
+    tid = send('Task', 'create', {'name': 'Survey', 'project_id': pid})['data']['id']
+    answer = projects_log_time({'id': tid})['data']
+    assert answer['page'] == 'timeentry_form'
+    assert answer['draft']['values'] == {'task_id': tid, 'project_id': pid, 'worker_id': 3}
+
+
+# -- Figures --------------------------------------------------------------------
+
+def test_the_figures_of_a_project_and_its_tasks(app):
+    signed_in(partner_id=3)
+    pid = new_project()
+    ids = [i for i, _, _ in stages(app, pid)]
+    first = send('Task', 'create', {'name': 'A', 'project_id': pid})['data']['id']
+    send('Task', 'create', {'name': 'B', 'project_id': pid, 'stage_id': ids[3]})
+    log(task_id=first, hours=2)
+    log(project_id=pid, hours=0.5)
+    Project, Task = app.models['Project'], app.models['Task']
+    with app.get_session() as s:
+        project = s.get(Project, pid)
+        assert (project.open_tasks, float(project.spent_hours)) == (1, 2.5)
+        open_ones = [t.name for t in s.query(Task).filter(Task.is_open.is_(True))]
+        assert open_ones == ['A']
+        assert float(s.get(Task, first).spent_hours) == 2.0

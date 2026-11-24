@@ -22,6 +22,10 @@ tables.Project.columns.is_template:
   en: Offered first when a new project starts as a copy; left out of the open projects.
   it: Proposto per primo quando un progetto nasce come copia; escluso dai progetti aperti.
 
+tables.Project.columns.open_tasks:
+  en: The tasks in a stage still to do or in progress.
+  it: I compiti in uno stadio ancora da fare o in corso.
+
 tables.TaskStage:
   en: |-
     A column of a project's board. The stages are the project's own and may
@@ -50,6 +54,18 @@ tables.Task.columns.priority:
   en: 0 normal, 1 high.
   it: 0 normale, 1 alta.
 
+tables.TimeEntry:
+  en: |-
+    Hours spent on a project, on one of its tasks or on the project as a
+    whole, by a person.
+  it: |-
+    Ore lavorate su un progetto, su uno dei suoi compiti o sul progetto nel
+    suo insieme, da una persona.
+
+tables.TimeEntry.columns.worker_id:
+  en: A person, who may or may not sign in. Left empty, you.
+  it: Una persona, che può avere o no un accesso. Vuoto, tu.
+
 pages.project_list:
   en: The projects open and on hold. Click one to see its tasks below and its story on the right; take a rule away to see the closed ones and the typical jobs.
   it: I progetti aperti e sospesi. Cliccane uno per vederne i compiti sotto e la storia a destra; togli una regola per vedere i chiusi e i lavori tipici.
@@ -59,8 +75,8 @@ pages.task_list:
   it: Tutti i compiti di tutti i progetti. Cliccane uno per vederne la storia a destra; passa alla bacheca per lavorare stadio per stadio, un progetto alla volta.
 
 pages.my_tasks:
-  en: The tasks assigned to you, in every project. The ones done are here too; sort by due date to see what comes first.
-  it: I compiti assegnati a te, in tutti i progetti. Ci sono anche quelli fatti; ordina per scadenza per vedere cosa viene prima.
+  en: The tasks assigned to you still open, in every project. Take the second rule away to see the ones done too; sort by due date to see what comes first.
+  it: I compiti assegnati a te ancora aperti, in tutti i progetti. Togli la seconda regola per vedere anche quelli fatti; ordina per scadenza per vedere cosa viene prima.
 
 pages.task_board:
   en: The tasks of a project, one column per stage. Pick the project above the board; drag a card to move it, click it to see its story, double-click to open it.
@@ -77,3 +93,35 @@ pages.task_form:
 pages.task_form.content.layout.task.columns.main.fields.stage_id:
   en: Where the task stands. Left empty, the first stage to do of its project.
   it: Dove sta il compito. Vuoto, il primo stadio da fare del suo progetto.
+
+pages.time_list:
+  en: The hours logged on every project, newest first. Filter them by project, person or day.
+  it: Le ore registrate su tutti i progetti, le più recenti prima. Filtrale per progetto, persona o giorno.
+
+pages.my_time:
+  en: The hours you logged, newest first.
+  it: Le ore che hai registrato, le più recenti prima.
+
+pages.timeentry_form:
+  en: Hours spent on a project, or on one of its tasks. Write the hours, or a start and an end and the hours are computed; take a pause out by writing them over.
+  it: Ore lavorate su un progetto o su uno dei suoi compiti. Scrivi le ore, oppure inizio e fine e le ore si calcolano; togli una pausa riscrivendole.
+
+pages.timeentry_form.content.layout.hours.columns.main.fields.project_id:
+  en: The project. Left empty, the project of the task.
+  it: Il progetto. Vuoto, il progetto del compito.
+
+pages.timeentry_form.content.layout.hours.columns.main.fields.end_at:
+  en: Before the start, the next day.
+  it: Prima dell'inizio, il giorno dopo.
+
+pages.timeentry_form.content.layout.hours.columns.main.fields.hours:
+  en: Hours as a decimal, 1.5 for an hour and a half. Left empty with a start and an end, the time between them.
+  it: Ore in decimale, 1,5 per un'ora e mezza. Vuoto con inizio e fine, il tempo fra i due.
+
+views.project_table.navigator.commands.log_time:
+  en: Records hours spent on this project as a whole. Hours on one of its tasks are logged from the task.
+  it: Registra ore lavorate su questo progetto nel suo insieme. Le ore su un suo compito si registrano dal compito.
+
+views.task_table.navigator.commands.log_time:
+  en: Records hours spent on this task, by you unless you name someone else.
+  it: Registra ore lavorate su questo compito, da te se non indichi qualcun altro.

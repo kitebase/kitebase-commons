@@ -7,15 +7,23 @@ closing it with tasks still open is said, not refused.
 A task always stands in a stage of its own project: with none named, the
 first one to do. A stage of another project is refused, except when the
 project was the thing changed: then the task starts again from the first
-stage of the new one.
+stage of the new one. Each move through the stages is a line of the history
+of the task, and so of its project.
+
+Hours always stand on a project, by a person, with a number (time_rules).
 """
+from datetime import date
+
+import kitebase.context
+import kitebase.utils
 from kitebase.flow import on_write
 from kitebase.i18n import _, _f
 
 from activities.moves import track_moves
 
-from projects.api import (STATES, TOP_PRIORITY, add_stages, first_stage, has_stages,
-                          open_tasks, stage_project)
+from projects.api import (STATES, TOP_PRIORITY, add_stages, first_stage,
+                          has_stages, hours_between, open_tasks, span_instants,
+                          stage_project)
 
 
 def _same(a, b) -> bool:
@@ -76,3 +84,60 @@ def task_rules(ctx):
 
 
 track_moves('Task')
+
+
+@on_write('TimeEntry')
+def time_rules(ctx):
+    """Hours always on a project, by a person, with a number: the project of
+    the task named, the person of the user writing when none is named, the
+    hours between start and end when they are left empty (an end before the
+    start is the next day). Hours longer than the interval are said, not
+    refused: a range may be written loosely."""
+    if ctx.mode == 'delete':
+        return
+    record = ctx.record
+    task = record.get('task_id')
+    if task not in (None, ''):
+        project = _task_project(ctx.session, task)
+        if project is None:
+            ctx.stay(_('The task is not there'))
+        if record.get('project_id') in (None, ''):
+            record['project_id'] = project
+        elif not _same(record['project_id'], project):
+            ctx.stay(_('The task is not one of the project chosen'))
+    if record.get('project_id') in (None, ''):
+        ctx.stay(_('Hours belong to a project'))
+
+    if record.get('worker_id') in (None, ''):
+        me = (kitebase.context.current() or {}).get('partner_id')
+        if me is None:
+            ctx.stay(_('Who worked? Your user is linked to no person: choose one'))
+        record['worker_id'] = me
+
+    try:
+        span = hours_between(record.get('start_at'), record.get('end_at'))
+        day = record.get('date')
+        if isinstance(day, str):
+            day = date.fromisoformat(day)
+        if day is not None:
+            # The instants on the day of the row, whatever day the form put
+            record['start_at'], record['end_at'] = span_instants(
+                day, record.get('start_at'), record.get('end_at'))
+    except ValueError:
+        ctx.stay(_('A start or an end is not a time of day'))
+    hours = record.get('hours')
+    if hours in (None, ''):
+        if span is None:
+            ctx.stay(_('How many hours? Write them, or a start and an end'))
+        record['hours'] = hours = span
+    if float(hours) <= 0:
+        ctx.stay(_('The hours are more than zero'))
+    if span is not None and float(hours) > float(span):
+        ctx.info(_f('{hours} hours are more than the time from start to end ({span})',
+                    hours=hours, span=span))
+
+
+def _task_project(session, task_id):
+    Task = kitebase.utils.get_app().models['Task']
+    row = session.query(Task.project_id).filter(Task.id == task_id).first()
+    return row[0] if row else None

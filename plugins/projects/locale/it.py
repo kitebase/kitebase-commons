@@ -46,4 +46,33 @@ register_translations('it', {
     'The state is one of: {values}':  'Lo stato è uno di: {values}',
     '{count} tasks are still open in this project':  'In questo progetto ci sono ancora {count} compiti aperti',
     'The priority is a whole number from 0 to {high}':  'La priorità è un numero intero da 0 a {high}',
+    # The hours
+    'Time entry':               'Ore',
+    'Timesheet':                'Foglio ore',
+    'My time':                  'Le mie ore',
+    'Log time':                 'Registra ore',
+    'Worked by':                'Lavorato da',
+    'Date':                     'Data',
+    'Hours':                    'Ore',
+    'Billable':                 'Fatturabile',
+    'Note':                     'Nota',
+    'Source':                   'Origine',
+    'Source reference':         "Riferimento d'origine",
+    'Hours spent':              'Ore lavorate',
+    'Open tasks':               'Compiti aperti',
+    'End':                      'Fine',
+    'Still open':               'Ancora aperto',
+    'The task is not there':    'Il compito non esiste',
+    'The task is not one of the project chosen':  'Il compito non è del progetto scelto',
+    'Hours belong to a project':  'Le ore appartengono a un progetto',
+    'Who worked? Your user is linked to no person: choose one':
+        'Chi ha lavorato? Il tuo utente non è collegato a una persona: scegline una',
+    'A start or an end is not a time of day':  "Un inizio o una fine non è un'ora del giorno",
+    'How many hours? Write them, or a start and an end':  'Quante ore? Scrivile, oppure inizio e fine',
+    'The hours are more than zero':  'Le ore sono più di zero',
+    '{hours} hours are more than the time from start to end ({span})':
+        "{hours} ore sono più del tempo fra inizio e fine ({span})",
+    'Select a task or a project first':  'Scegli prima un compito o un progetto',
+    'Hours are logged on a task or a project, not on {model}':
+        'Le ore si registrano su un compito o un progetto, non su {model}',
 })

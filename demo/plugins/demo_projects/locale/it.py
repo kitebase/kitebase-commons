@@ -6,5 +6,7 @@ register_translations('it', {
     'Task board':    'Bacheca',
     'Projects':      'Progetti',
     'Tasks':         'Compiti',
+    'My time':       'Le mie ore',
+    'Timesheet':     'Foglio ore',
     'Project tags':  'Tag dei progetti',
 })

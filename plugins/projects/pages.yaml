@@ -63,12 +63,13 @@ pages:
   # nothing: the list shows every task, with the rule there to be filled.
   my_tasks:
     title: My tasks
-    help: The tasks assigned to you, in every project. The ones done are here too; sort by due date to see what comes first.
+    help: The tasks assigned to you still open, in every project. Take the second rule away to see the ones done too; sort by due date to see what comes first.
     content:
       $ref: views.task_table
       source: *task_source
       rules:
         - {field: assignee_id, op: eq, value: $ctx.partner_id}
+        - {field: is_open, op: eq, value: true}
     panels: *task_panels
 
   # One project at a time, its own stages as the columns; the projects
@@ -206,6 +207,8 @@ pages:
             - id: main
               fields:
                 - name: description
+        # The hours are listed, not written here: they are logged in their own
+        # form ("Log time"), whose rules a tree does not judge yet
         - id: relations
           type: tabs
           pages:
@@ -214,6 +217,109 @@ pages:
               layout:
                 - type: plugin
                   component: activities.timeline
+            - id: hours_tab
+              label: Hours
+              count: time_entries
+              layout:
+                - type: collection
+                  id: time_entries
+                  model: TimeEntry
+                  fk: task_id
+                  readonly: true
+                  view:
+                    type: table
+                    columns:
+                      - field: date
+                        title: Date
+                        width: 110
+                      - field: worker_id.name
+                        title: Worked by
+                        width: 180
+                      - field: hours
+                        title: Hours
+                        width: 90
+                      - field: billable
+                        title: Billable
+                        width: 90
+                      - field: note
+                        title: Note
+
+  # Every hour logged, newest first; the hours of the person signed in
+  time_list:
+    title: Timesheet
+    help: The hours logged on every project, newest first. Filter them by project, person or day.
+    content:
+      $ref: views.time_table
+      source: &time_source
+        model: TimeEntry
+        joins:
+          - Project: {type: left, "on": "TimeEntry.project_id = Project.id"}
+          - Task: {type: left, "on": "TimeEntry.task_id = Task.id"}
+          - Partner: {type: left, "on": "TimeEntry.worker_id = Partner.id"}
+        order_by: [-date, -id]
+
+  my_time:
+    title: My time
+    help: The hours you logged, newest first.
+    content:
+      $ref: views.time_table
+      source: *time_source
+      rules:
+        - {field: worker_id, op: eq, value: $ctx.partner_id}
+
+  # A start and an end, typed as times (the instants take their day from the
+  # date on save), give the hours as the field is left (projects_hours), an
+  # end before the start being the next day:
+  # the hours may then be written over, a pause taken out. Left empty, the
+  # save computes them the same way, and the person is the user writing.
+  timeentry_form:
+    title: Time entry
+    help: Hours spent on a project, or on one of its tasks. Write the hours, or a start and an end and the hours are computed; take a pause out by writing them over.
+    content:
+      type: form
+      source:
+        model: TimeEntry
+        id: $props.id
+      layout:
+        - id: hours
+          type: section
+          columns:
+            - id: main
+              fields:
+                - name: project_id
+                  width: 50%
+                  required: false
+                  help: The project. Left empty, the project of the task.
+                - name: task_id
+                  width: 50%
+                  lookup:
+                    filters: {project_id: $record.project_id}
+                - name: worker_id
+                  width: 50%
+                  required: false
+                - name: date
+                  width: 25%
+                - name: billable
+                  width: 25%
+                - name: start_at
+                  widget: time
+                  width: 25%
+                  on_change: &hours_from_span
+                    endpoint: projects_hours
+                    pass: [start_at, end_at]
+                    apply: [hours]
+                - name: end_at
+                  widget: time
+                  width: 25%
+                  help: Before the start, the next day.
+                  on_change: *hours_from_span
+                - name: hours
+                  width: 25%
+                  required: false
+                  help: Hours as a decimal, 1.5 for an hour and a half. Left empty with a start and an end, the time between them.
+                - name: note
+                  width: 100%
+                  widget: textarea
 
 views:
 
@@ -240,11 +346,27 @@ views:
       - field: end_date
         title: Expected end
         width: 120
+      - field: open_tasks
+        title: Open tasks
+        width: 110
+      - field: spent_hours
+        title: Hours spent
+        width: 120
       - field: tags
         title: Tags
       - field: is_template
         title: Typical job
         width: 110
+    navigator:
+      commands:
+        - id: log_time
+          label: Log time
+          help: Records hours spent on this project as a whole. Hours on one of its tasks are logged from the task.
+          icon: timer
+          scope: row
+          key: t
+          endpoint: projects_log_time
+          params: { of: Project }
 
   task_table:
     type: table
@@ -271,12 +393,25 @@ views:
       - field: estimate_hours
         title: Estimate (hours)
         width: 130
+      - field: spent_hours
+        title: Hours spent
+        width: 120
       - field: tags
         title: Tags
     card:
       title: name
       subtitle: assignee
-      details: [due_date, estimate_hours]
+      details: [due_date, estimate_hours, spent_hours]
+    navigator:
+      commands:
+        - id: log_time
+          label: Log time
+          help: Records hours spent on this task, by you unless you name someone else.
+          icon: timer
+          toolbar: true
+          scope: row
+          key: t
+          endpoint: projects_log_time
 
   # The tasks of a project, under the projects
   project_tasks:
@@ -305,3 +440,26 @@ views:
       - field: due_date
         title: Due
         width: 110
+
+  time_table:
+    type: table
+    columns:
+      - field: date
+        title: Date
+        width: 110
+      - field: Partner.name as worker
+        title: Worked by
+        width: 160
+      - field: Project.name as project
+        title: Project
+        width: 180
+      - field: Task.name as task
+        title: Task
+      - field: hours
+        title: Hours
+        width: 90
+      - field: billable
+        title: Billable
+        width: 90
+      - field: note
+        title: Note

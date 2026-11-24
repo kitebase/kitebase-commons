@@ -4,6 +4,8 @@
 
 These functions check no permission: the caller answers for what it does.
 """
+from datetime import date, datetime, time, timedelta
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Optional, Sequence, Tuple
 
 import kitebase.utils
@@ -70,3 +72,49 @@ def open_tasks(session: Any, project_id: Any) -> int:
     return session.query(Task.id).join(TaskStage, Task.stage_id == TaskStage.id) \
         .filter(Task.project_id == project_id,
                 TaskStage.category.in_(OPEN_CATEGORIES)).count()
+
+
+def as_time(value: Any) -> Optional[time]:
+    """The time of day of a start or an end: "09:00" or a datetime as text
+    from a form, a time or a datetime from code."""
+    if value in (None, ''):
+        return None
+    if isinstance(value, datetime):
+        return value.time()
+    if isinstance(value, time):
+        return value
+    text = str(value).strip()
+    if len(text) > 10 and text[10] in 'T ':
+        text = text[11:]                   # "2026-11-24T22:00:00": its time
+    for shape in ('%H:%M:%S.%f', '%H:%M:%S', '%H:%M'):
+        try:
+            return datetime.strptime(text, shape).time()
+        except ValueError:
+            continue
+    raise ValueError(f'Not a time of day: {value!r}')
+
+
+def span_instants(day: date, start: Any, end: Any) -> Tuple[Optional[datetime], Optional[datetime]]:
+    """The start and the end on `day`, whatever day they carried: an end
+    before the start is the next day."""
+    start_t, end_t = as_time(start), as_time(end)
+    start_at = datetime.combine(day, start_t) if start_t is not None else None
+    end_at = datetime.combine(day, end_t) if end_t is not None else None
+    if start_at is not None and end_at is not None and end_at < start_at:
+        end_at += timedelta(days=1)
+    return start_at, end_at
+
+
+def hours_between(start: Any, end: Any) -> Optional[Decimal]:
+    """The hours from start to end, read as times of day, two decimals; an
+    end before the start is the next day. None without both, or with the two
+    the same."""
+    start, end = as_time(start), as_time(end)
+    if start is None or end is None or start == end:
+        return None
+    seconds = (end.hour * 3600 + end.minute * 60 + end.second) \
+        - (start.hour * 3600 + start.minute * 60 + start.second)
+    if seconds < 0:
+        seconds += 24 * 3600
+    hours = Decimal(seconds) / Decimal(3600)
+    return hours.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)

@@ -50,7 +50,7 @@ def clean(app):
     person 3; no project, no task; nobody logged in."""
     with app.get_session() as s:
         for name in ('TaskTagLink', 'ProjectTagLink', 'ProjectTag', 'ActivityLink', 'Activity',
-                     'Task', 'TaskStage', 'Project', 'User', 'Partner'):
+                     'TimeEntry', 'Task', 'TaskStage', 'Project', 'User', 'Partner'):
             s.query(app.models[name]).delete()
         s.add(app.models['Partner'](id=1, kind='organization', name='Riverside'))
         s.add(app.models['Partner'](id=3, kind='person', name='Carter, Alex'))
@@ -59,5 +59,7 @@ def clean(app):
                                  email='tester@example.com', partner_id=3))
         s.commit()
     yield
+    from test_projects import CALLER
+    CALLER.clear()
     access.GUARD.reset()
     kitebase.context.replace({})

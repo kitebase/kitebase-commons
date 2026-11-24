@@ -87,6 +87,7 @@ def seed(app, model):
         session.flush()
         seed_crm(session, model)
         seed_projects(session, model)
+        seed_time(session, model)
         session.commit()
 
 
@@ -165,6 +166,29 @@ def seed_projects(session, model):
         ("Layout drawing", 0, None, 6),
         ("Order the material", 0, None, 1),
         ("Install and test", 0, None, 16)))
+
+
+def seed_time(session, model):
+    """A few hours on the warehouse project, on its tasks and on the project as
+    a whole, so that the timesheet and the figures show something."""
+    if session.query(model.TimeEntry).first():
+        return
+    project = session.query(model.Project).filter_by(name="Warehouse racking install").first()
+    if project is None:
+        return
+    tasks = {t.name: t.id for t in session.query(model.Task).filter_by(project_id=project.id)}
+    people = {p.name: p.id for p in session.query(model.Partner)
+              .filter(model.Partner.kind == "person")}
+    import datetime
+    for day, task, who, hours, note in (
+            (datetime.date(2026, 11, 16), "Survey of the warehouse", "Ross, Mark", 3.5, None),
+            (datetime.date(2026, 11, 18), "Layout drawing", "Carter, Alex", 2.0, "First draft"),
+            (datetime.date(2026, 11, 20), "Layout drawing", "Carter, Alex", 1.5, None),
+            (datetime.date(2026, 11, 20), None, "Carter, Alex", 0.5, "Call with the customer")):
+        if who not in people:
+            continue
+        session.add(model.TimeEntry(project_id=project.id, task_id=tasks.get(task),
+                                    worker_id=people[who], date=day, hours=hours, note=note))
 
 
 def main():
