@@ -45,7 +45,6 @@ register_translations('it', {
     'No budget':                'Nessun budget',
     'No answer':                'Nessuna risposta',
     # The story of the negotiation
-    'From {old} to {new}':      'Da {old} a {new}',
     'Lost: {reason}':           'Persa: {reason}',
     'Opened again':             'Riaperta',
     # Closing from a list or the board

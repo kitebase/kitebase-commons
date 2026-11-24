@@ -164,10 +164,10 @@ def test_an_unknown_type_is_refused(app):
 def test_a_plugin_registers_its_own_type(app):
     saved = api()._TYPES.snapshot()
     try:
-        api().register_type('stage', 'Stage change', 'flag')
-        api().log_activity(('Deal', 10), 'stage', 'From Contact to Offer')
+        api().register_type('visit', 'Site visit', 'flag')
+        api().log_activity(('Deal', 10), 'visit', 'At the warehouse')
         with app.get_session() as s:
-            assert s.get(app.models['ActivityType'], 'stage').icon == 'flag'
+            assert s.get(app.models['ActivityType'], 'visit').icon == 'flag'
     finally:
         api()._TYPES.restore(saved)
 

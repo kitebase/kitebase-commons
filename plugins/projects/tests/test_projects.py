@@ -171,3 +171,19 @@ def test_a_project_is_deleted_with_its_stages_and_tasks(app):
     with app.get_session() as s:
         assert s.query(Task).count() == 0
     assert stages(app, pid) == []
+
+
+# -- History --------------------------------------------------------------------
+
+def test_a_task_moved_is_a_line_of_its_history_and_of_its_project(app):
+    pid = new_project()
+    ids = [i for i, _, _ in stages(app, pid)]
+    tid = send('Task', 'create', {'name': 'Survey', 'project_id': pid})['data']['id']
+    assert send('Task', 'update', {'stage_id': ids[1]}, id=tid)['status'] == 'success'
+    assert send('Task', 'update', {'stage_id': ids[2]}, id=tid)['status'] == 'success'
+    Activity, Link = app.models['Activity'], app.models['ActivityLink']
+    with app.get_session() as s:
+        lines = [a.subject for a in s.query(Activity).filter_by(type_id='stage')]
+        assert lines == ['From To do to In review']
+        reached = {(l.model, l.role) for l in s.query(Link)}
+    assert reached == {('Task', 'owner'), ('Project', 'follow')}

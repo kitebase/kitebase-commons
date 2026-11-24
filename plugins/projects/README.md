@@ -34,7 +34,8 @@ is a person through `User.partner_id` (the `partners` plugin), which also puts
 `{field: assignee_id, op: eq, value: $ctx.partner_id}`.
 
 An activity on a task reaches its project, and from there its partner
-(`activities.follow`). A note on a task is an activity; a note linked to
+(`activities.follow`). A task moved to another stage is a line of its history,
+"From To do to In review" (`activities.moves`). A note on a task is an activity; a note linked to
 another project too is how two pieces of work refer to each other.
 
 ## The pages

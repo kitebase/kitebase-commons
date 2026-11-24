@@ -259,12 +259,12 @@ def test_a_type_not_picked_is_not_offered(app):
     from activities import api
     saved = api._TYPES.snapshot()
     try:
-        api.register_type('stage', 'Stage change', 'flag', pick=False)
+        api.register_type('reminder', 'Reminder sent', 'flag', pick=False)
         as_user(7, {'ActivityType.read': None})
-        assert 'stage' not in [t['value'] for t in call('activity_types')['data']]
+        assert 'reminder' not in [t['value'] for t in call('activity_types')['data']]
         with app.get_session() as s:
             # The row is there, for the application to offer it if it wants
-            assert s.get(app.models['ActivityType'], 'stage').pick is False
+            assert s.get(app.models['ActivityType'], 'reminder').pick is False
             s.get(app.models['ActivityType'], 'note').pick = False
             s.commit()
         assert 'note' not in [t['value'] for t in call('activity_types')['data']]

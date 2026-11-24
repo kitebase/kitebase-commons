@@ -113,6 +113,24 @@ past activities in the history of the first. A name in `follow` that is no
 foreign key of the table stops the first activity written on it, with the
 table and the name.
 
+## The moves through the states
+
+A table with a `state` (a stage on a board, a status) asks for its changes to
+be told in the history, in the rules of the plugin that owns it:
+
+```python
+from activities.moves import track_moves
+
+track_moves('Task')
+```
+
+Each change is a done activity of the type `stage`, "From To do to In review",
+on the record and on the parents it follows. Moves made by the same person
+within ten minutes are one line, and a record moved back where it was leaves
+none. The values read as a person reads them: the name of the row the state
+points to, or the label of its choice. A call rather than a key in the model,
+since a rule is registered on the table it names. `crm` and `projects` use it.
+
 ## In the client
 
 Three components, which the application places:

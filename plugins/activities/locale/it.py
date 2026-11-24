@@ -37,4 +37,7 @@ register_translations('it', {
     'No user {id}':             'Utente {id} non trovato',
     "'state' is todo, done or all": "'state' è todo, done o all",
     'A record is a model and an id, not {ref}': 'Un record è un modello e un id, non {ref}',
+    # A move through the states of a record (moves.py)
+    'From {old} to {new}':      'Da {old} a {new}',
+    'none':                     'nessuno',
 })

@@ -12,6 +12,8 @@ stage of the new one.
 from kitebase.flow import on_write
 from kitebase.i18n import _, _f
 
+from activities.moves import track_moves
+
 from projects.api import (STATES, TOP_PRIORITY, add_stages, first_stage, has_stages,
                           open_tasks, stage_project)
 
@@ -71,3 +73,6 @@ def task_rules(ctx):
     if priority is not None and (isinstance(priority, bool) or not isinstance(priority, int)
                                  or not 0 <= priority <= TOP_PRIORITY):
         ctx.stay(_f('The priority is a whole number from 0 to {high}', high=TOP_PRIORITY))
+
+
+track_moves('Task')
